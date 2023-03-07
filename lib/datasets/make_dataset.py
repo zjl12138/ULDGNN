@@ -28,7 +28,7 @@ def make_sampler(batch_size, is_train, dataset,drop_last):
     if is_train:
         return BatchSampler( RandomSampler(dataset),batch_size, drop_last)
     else:
-        return BatchSampler( SequentialSampler(dataset))
+        return BatchSampler( SequentialSampler(dataset), batch_size, drop_last)
 
 def make_data_loader(cfg, is_train=True):
     if is_train:

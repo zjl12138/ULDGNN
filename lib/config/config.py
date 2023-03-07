@@ -29,10 +29,10 @@ cfg.train_dataset.rootDir = '../../dataset/graph_dataset'
 cfg.train_dataset.index_json = 'index_train.json'
 
 cfg.test_dataset = CN()
-cfg.test_dataset.module = ''
-cfg.test_dataset.path = ''
-cfg.test_dataset.rootDir = ''
-cfg.test_dataset.index_json = ''
+cfg.test_dataset.module = 'lib.datasets.light_stage.graph_dataset'
+cfg.test_dataset.path = 'lib/datasets/light_stage/graph_dataset.py'
+cfg.test_dataset.rootDir = '../../dataset/graph_dataset'
+cfg.test_dataset.index_json = 'index_train.json'
 
 cfg.train = CN()
 cfg.train.batch_size = 4
@@ -40,6 +40,9 @@ cfg.train.local_rank = 0
 cfg.train.log_interval = 10
 cfg.train.record_interval = 10
 cfg.train.shuffle=True
+
+cfg.test = CN()
+cfg.test.batch_size = 1
 
 cfg.network = CN()
 cfg.network.network_module = ''

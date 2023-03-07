@@ -7,6 +7,7 @@ import datetime
 import tqdm
 from lib.evaluators.evaluator import evaluator
 from lib.visualizers.visualizer import visualizer
+import torch.nn.functional as F
 
 cfg = CFG.train
 
@@ -94,7 +95,12 @@ class Trainer(object):
                 val_metric_stats[k] += v
             
             if visualizer is not None:
-                visualizer.visualize(output[0],batch[0],output[1],batch[6][0])
+                logits, local_params = output
+                layer_rects = batch[0]
+                pred = torch.max(F.softmax(logits,dim=1), 1)[1]
+                layer_rects = layer_rects[pred==1]
+                local_params = local_params[pred==1]
+                visualizer.visualize(layer_rects,local_params,batch[6][0])
         
         loss_state = []
         metric_state = []
