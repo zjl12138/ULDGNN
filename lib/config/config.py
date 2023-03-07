@@ -45,37 +45,40 @@ cfg.test = CN()
 cfg.test.batch_size = 1
 
 cfg.network = CN()
-cfg.network.network_module = ''
-cfg.network.network_path = ''
+cfg.network.network_module = 'lib.networks.network'
+cfg.network.network_path = 'lib/networks/network.py'
+
 cfg.network.pos_embedder = CN()
-cfg.network.pos_embedder.multires=10
+cfg.network.pos_embedder.multires=9
 cfg.network.pos_embedder.out_dim=256
 
 cfg.network.type_embedder = CN()
 cfg.network.type_embedder.out_dim = 256
-cfg.network.type_embedder.class_num = 10 
+cfg.network.type_embedder.class_num = 14 
 
 cfg.network.img_embedder = CN()
 cfg.network.img_embedder.outdim = 256
 cfg.network.img_embedder.name='resnet50'
 
 cfg.network.gnn_fn = CN()
-cfg.network.gnn_fn.latent_dims = []
-cfg.network.gnn_fn.num_heads = [] #len(num_heads)==len(latent_dims)+1
+cfg.network.gnn_fn.latent_dims = [512,512]
+cfg.network.gnn_fn.num_heads = [4,4,4] #len(num_heads)==len(latent_dims)+1
 cfg.network.gnn_fn.out_dim = 256
 cfg.network.gnn_fn.concat = True
 cfg.network.gnn_fn.residual = True
 cfg.network.gnn_fn.batch_norm = True
 
 cfg.network.cls_fn = CN()
-cfg.network.cls_fn.latent_dims = []
+cfg.network.cls_fn.latent_dims = [256,256]
 cfg.network.cls_fn.act_fn = 'LeakyReLU'
 cfg.network.cls_fn.norm_type = 'BatchNorm1d'
+cfg.network.cls_fn.classes = 2
 
 cfg.network.loc_fn = CN()
-cfg.network.loc_fn.latent_dims = []
+cfg.network.loc_fn.latent_dims = [256,256]
 cfg.network.loc_fn.act_fn = 'LeakyReLU'
 cfg.network.loc_fn.norm_type = 'BatchNorm1d'
+cfg.network.cls_fn.classes = 4
 
 cfg.network.cls_loss = CN()
 cfg.network.cls_loss.type = 'focal_loss'

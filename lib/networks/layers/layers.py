@@ -3,9 +3,8 @@ from typing import List
 import torch.nn as nn
 import importlib
 from torch_geometric.nn import GATConv
-import torch.functional as F
+import torch.nn.functional as F
 import torch
-
 
 def make_fully_connected_layer(in_dim, out_dim, act_fn, norm_type):    
     fc_layer = nn.Sequential()
@@ -18,7 +17,7 @@ def make_fully_connected_layer(in_dim, out_dim, act_fn, norm_type):
         fc_layer.add_module(getattr(act_module,act_fn))
 
 class GATLayer(nn.Module):
-    def __init__(self, in_dim, out_dim, num_heads,  batch_norm=True, residual=False, activation=F.elu,concat=True):
+    def __init__(self, in_dim, out_dim, num_heads,  batch_norm=True, residual=False, activation=F.elu, concat=True):
         super(GATLayer,self).__init__()
         self.residual = residual
         self.activation = activation

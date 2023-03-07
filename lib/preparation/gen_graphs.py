@@ -219,10 +219,10 @@ def generate_graphs(json_list: List[str],
 
 if __name__=='__main__':
     json_list = []
-    for idx in range(1):
+    for idx in range(20):
         json_list.append(f'/media/sda1/ljz-workspace/dataset/ui_dataset/{idx}.json')
     generate_graphs(json_list, '/media/sda1/ljz-workspace/code/ULGnn/output/log',
     '/media/sda1/ljz-workspace/code/ULGnn/output/profile',
     '/media/sda1/ljz-workspace/dataset/graph_dataset',
-    max_threads=1)
+    max_threads=4)
 

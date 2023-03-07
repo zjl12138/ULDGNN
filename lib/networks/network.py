@@ -38,24 +38,30 @@ class LayerGNN(nn.Module):
         super(LayerGNN,self).__init__()
         self.latent_dims = cfg.latent_dims
         self.num_heads = cfg.num_heads
-        
+        self.gnn_layer_list = []
+        self.make(cfg)
+
     def make(self, cfg):
-        self.gnn_layer_list = nn.Sequential()
+        
         in_dim = cfg.in_dim
         assert(len(self.num_heads)==len(self.latent_dims)+1)
         for (latent_dim, num_head) in zip(self.latent_dims, self.num_heads[:-1]):
-            self.gnn_layer_list.add_module(GATLayer(in_dim, latent_dim,
+            self.gnn_layer_list.append(GATLayer(in_dim, latent_dim,
                                                  num_head, cfg.batch_norm, 
                                                  cfg.residual, cfg.concat))
             in_dim = latent_dim * num_head if cfg.concat else latent_dim
-        self.gnn_layer_list.add_module(GATLayer(in_dim, cfg.out_dim, self.num_heads[-1], False, False, concat=False))
-
-    def forward(self, x,edges):
-        return self.gnn_layer_list(x,edges)
-
+        self.gnn_layer_list.append(GATLayer(in_dim, cfg.out_dim, self.num_heads[-1], False, False, concat=False))
+        
+    def forward(self, x, edges):
+        print(torch.max(edges))
+        print(x.shape)
+        for gnn_layer in self.gnn_layer_list:
+            x = gnn_layer(x, edges)
+        return x
 class Network(nn.Module):
     def __init__(self):
         super(Network, self).__init__()
+       
         self.pos_embedder = PosEmbedder(cfg.pos_embedder)
         self.type_embedder = TypeEmbedder(cfg.type_embedder)
         self.img_embedder = ImageEmbedder(cfg.img_embedder)
@@ -81,9 +87,15 @@ class Network(nn.Module):
         return loss_stats
 
     def forward(self, batch):
+        #nodes, edges, types,  img_tensor, labels, bboxes, file_list
         layer_rect, edges, classes, images, labels, bboxes, _ = batch
-        batch_embedding = self.pos_embedder(layer_rect)+self.type_embedder(classes)+self.img_embedder(images)
-        gnn_out = self.gnn_fn(batch_embedding,edges)
+        pos_embedding = self.pos_embedder(layer_rect)
+        type_embedding = self.type_embedder(classes)
+        img_embedding = self.img_embedder(images)
+
+        #batch_embedding = self.pos_embedder(layer_rect)+self.type_embedder(classes)+self.img_embedder(images)
+        batch_embedding = pos_embedding + type_embedding + img_embedding
+        gnn_out = self.gnn_fn(batch_embedding, edges)
         logits, loc_params = self.cls_fn(gnn_out), self.loc_fn(gnn_out)
         loss_stats = self.loss([logits, loc_params],[labels,bboxes])
         return (logits, loc_params), loss_stats['loss'], loss_stats

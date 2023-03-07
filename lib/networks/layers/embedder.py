@@ -1,10 +1,8 @@
 import torch
 import torch.nn as nn
-from torchvision import models
 import importlib
-import torchvision
 
-class PosEmbedder:
+class PosEmbedder_impl:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
         self.create_embedding_fn()
@@ -25,7 +23,7 @@ class PosEmbedder:
         for freq in freq_bands:
             for p_fn in self.kwargs['periodic_fns']:
                 embed_fns.append(lambda x, p_fn = p_fn,freq=freq: p_fn(x*freq))
-            out_dim += d
+                out_dim += d
         self.embed_fns = embed_fns
         self.out_dim = out_dim
 
@@ -37,19 +35,22 @@ def GetPosEmbedder(multires, input_dim = 4):
         'include_input':True,
         'input_dims':input_dim,
         'max_freq_log2':multires-1,
+        'num_freqs':multires,
         'log_sampling':True,
         'periodic_fns':[torch.sin, torch.cos]
     }    
-    embed_obj = PosEmbedder(embed_kwargs)
+    embed_obj = PosEmbedder_impl(**embed_kwargs)
     embed = lambda x, eo=embed_obj: eo.embed(x)
     return embed, embed_obj.out_dim
 
 class PosEmbedder(nn.Module):
     def __init__(self, cfg):
+        super(PosEmbedder, self).__init__()
         self.embed, in_dim = GetPosEmbedder(cfg.multires)
         self.fc_layer = nn.Linear(in_dim, cfg.out_dim)
     def forward(self, x):
         x = self.embed(x)
+        #print("embedding dim:",x.shape)
         return self.fc_layer(x)
     
 class ImageEmbedder(nn.Module):
@@ -57,8 +58,9 @@ class ImageEmbedder(nn.Module):
         '''
         cfg is ImageEmbedder cfgNode
         '''
-        self.outdim = cfg.outdim    
-        self.feature_extractor = getattr(importlib.import_module('torchvision.models'),cfg.name)
+        super(ImageEmbedder, self).__init__()
+        self.out_dim = cfg.outdim    
+        self.feature_extractor = getattr(importlib.import_module('torchvision.models'),cfg.name)(pretrained=True)
         num_channels = self.feature_extractor.fc.in_features
         self.feature_extractor.fc = nn.Linear(num_channels, self.out_dim)
     
@@ -67,6 +69,7 @@ class ImageEmbedder(nn.Module):
 
 class TypeEmbedder(nn.Module):
     def __init__(self, cfg):
+        super(TypeEmbedder, self).__init__()
         self.out_dim = cfg.out_dim 
         self.embedding = nn.Embedding(cfg.class_num, self.out_dim)
     def forward(self, input):
