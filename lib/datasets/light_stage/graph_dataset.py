@@ -28,8 +28,9 @@ def collate_fn(batch, collate_img_path=True):
     bboxes = torch.cat(bboxes,dim=0)
     img_list = [b[5]for b in batch]
     img_tensor = torch.cat(img_list, dim=0)
-    file_list = [b[6] for b in batch]
+    
     if collate_img_path:
+        file_list = [b[6] for b in batch]
         return  nodes, edges, types,  img_tensor, labels, bboxes, file_list   
     return nodes, edges, types,  img_tensor, labels, bboxes
 
@@ -41,7 +42,7 @@ class Dataset(data.Dataset):
     def __init__(self, cfg):
         self.root = cfg.rootDir
         self.index_json = cfg.index_json
-        self.train_list = json.load(open(os.path.join(self.root,self.train_json),'r'))
+        self.train_list = json.load(open(os.path.join(self.root,self.index_json),'r'))
         self.img_transform = T.Compose([
             T.ToTensor(),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -53,6 +54,7 @@ class Dataset(data.Dataset):
         return Image.open(path).convert('RGB')
 
     def __getitem__(self, index) :
+        
         train_artboard = self.train_list[index]
         json_name, assets_img = train_artboard['json'], train_artboard['layerassets']
         
@@ -61,7 +63,7 @@ class Dataset(data.Dataset):
         layer_assets = self.img_transform(self.read_img(os.path.join(self.root, artboard_idx,assets_img)))
         layer_assets = list(torch.split(layer_assets,64,dim=1))
         
-        artboard_img_path = os.path.join(self.root, train_artboard['image'])
+        artboard_img_path = os.path.join(self.root, artboard_idx, train_artboard['image'])
 
         batch = []
         img_split_last_idx = 0
@@ -70,6 +72,7 @@ class Dataset(data.Dataset):
             layer_rect, edges, bbox, types, labels = read_graph_json(graph_path)
             layer_rect = torch.FloatTensor(layer_rect)
             edges = torch.LongTensor(edges).transpose(1,0)
+            
             bbox = torch.FloatTensor(bbox)
             types = torch.LongTensor(types)
             labels = torch.LongTensor(labels)
@@ -79,7 +82,7 @@ class Dataset(data.Dataset):
             batch.append([layer_rect, edges, types, labels, bbox, layer_img])
             img_split_last_idx += layer_rect.shape[0]
         
-        return collate_fn(batch, False), artboard_img_path
+        return *collate_fn(batch, False), artboard_img_path
 
 if __name__=='__main__':
     cfg = CN()

@@ -2,7 +2,6 @@ from .yacs import CfgNode as CN
 from . import yacs
 import argparse
 import os
-cfg = CN()
 
 '''
 --outDir
@@ -12,7 +11,9 @@ cfg = CN()
      |___checkpoints
 '''
 
-cfg.outDir = ''
+cfg = CN()
+
+cfg.outDir = 'output'
 cfg.exp_name=''
 cfg.model_dir = ''
 
@@ -22,22 +23,23 @@ cfg.visualizer = CN()
 cfg.visualizer.vis_dir =''
 
 cfg.train_dataset = CN()
-cfg.train_dataset.module = ''
-cfg.train_dataset.path = ''
-cfg.train_dataset.rootDir = ''
-cfg.train_dataset.train_json = ''
+cfg.train_dataset.module = 'lib.datasets.light_stage.graph_dataset'
+cfg.train_dataset.path = 'lib/datasets/light_stage/graph_dataset.py'
+cfg.train_dataset.rootDir = '../../dataset/graph_dataset'
+cfg.train_dataset.index_json = 'index_train.json'
 
 cfg.test_dataset = CN()
 cfg.test_dataset.module = ''
 cfg.test_dataset.path = ''
 cfg.test_dataset.rootDir = ''
-cfg.test_dataset.train_json = ''
+cfg.test_dataset.index_json = ''
 
 cfg.train = CN()
 cfg.train.batch_size = 4
 cfg.train.local_rank = 0
 cfg.train.log_interval = 10
 cfg.train.record_interval = 10
+cfg.train.shuffle=True
 
 cfg.network = CN()
 cfg.network.network_module = ''
@@ -100,11 +102,10 @@ def make_cfg(args):
     os.makedirs(cfg.recorder.record_dir,exist_ok=True)
     os.makedirs(cfg.visualizer.vis_dir, exist_ok=True)
     os.makedirs(cfg.model_dir, exist_ok=True)
-
+    
 parser = argparse.ArgumentParser()
 parser.add_argument("--cfg_file", default = "configs/default.yaml",type=str)
 parser.add_argument("--exp_name",type=str)
-parser.add_argument("opts", default=None, nargs=argparse.REMAINDER)
 
 args = parser.parse_args()
-cfg = make_cfg(args)
+make_cfg(args)

@@ -75,7 +75,7 @@ def generate_single_graph(layer_list, output_path, artboard_height, artboard_wid
         if x>1:
             x=1
         return x
-    root = bboxTree(0,0,1,1)
+    root = bboxTree(0,0,2,2)
     labels = []
     layer_rect = []
     bbox = []
@@ -85,6 +85,10 @@ def generate_single_graph(layer_list, output_path, artboard_height, artboard_wid
     for idx, layer in enumerate(layer_list):
         x, y, w, h = abs(layer['rect']['x'])/artboard_width, layer['rect']['y']/artboard_height, layer['rect']['width']/artboard_width, layer['rect']['height']/artboard_height
         x, y, w, h = clip_val(x),clip_val(y),clip_val(w),clip_val(h)
+        assert(x>=0 and x<=1)
+        assert(y>=0 and y<=1)
+        assert(w>=0 and w<=1)
+        assert(h>=0 and h<=1)
         layer_rect.append([x, y, w, h])
         root.insert(bboxNode(idx, x, y, x+w, x+h))
         types.append(LAYER_CLASS_MAP[layer['_class']])
@@ -104,7 +108,9 @@ def generate_single_graph(layer_list, output_path, artboard_height, artboard_wid
         if layer['label']==0 or layer['label']==1:
                 merge_groups.append(tmp_merge_group)
                 tmp_merge_group=[]
-    
+    if len(tmp_merge_group)!=0:
+        merge_groups.append(tmp_merge_group)
+
     for merge_group in merge_groups:
         tmp_bbox = [2,2,0,0]    
         for idx in merge_group:
@@ -112,10 +118,11 @@ def generate_single_graph(layer_list, output_path, artboard_height, artboard_wid
             tmp_bbox[0], tmp_bbox[1] = min(tmp_bbox[0],x),min(tmp_bbox[1],y)
             tmp_bbox[2], tmp_bbox[3] = max(tmp_bbox[2],x+w), max(tmp_bbox[3],y+h)
         for idx in merge_group:
-            bbox[idx].extend([tmp_bbox[0],tmp_bbox[1],tmp_bbox[2]-tmp_bbox[0], tmp_bbox[3]-tmp_bbox[2]])
+            bbox[idx].extend([tmp_bbox[0],tmp_bbox[1],tmp_bbox[2]-tmp_bbox[0], tmp_bbox[3]-tmp_bbox[1]])
     
     assert(len(layer_rect)==len(layer_list))
     assert(len(bbox)==len(layer_list))
+
     edges = root.gen_graph()
     json.dump({'layer_rect':layer_rect,'edges':edges,
                 'bbox':bbox, 
@@ -219,10 +226,14 @@ def generate_graphs(json_list: List[str],
 
 if __name__=='__main__':
     json_list = []
-    for idx in range(1):
+    index_train = []
+    for idx in range(10):
         json_list.append(f'/media/sda1/ljz-workspace/dataset/ui_dataset/{idx}.json')
+        index_train.append({"json": f"{idx}.json", "layerassets":f"{idx}-assets.png", "image":f"{idx}.png"})
+        
     generate_graphs(json_list, '/media/sda1/ljz-workspace/code/ULGnn/output/log',
     '/media/sda1/ljz-workspace/code/ULGnn/output/profile',
     '/media/sda1/ljz-workspace/dataset/graph_dataset',
-    max_threads=1)
+        max_threads=1)
+    json.dump(index_train,open("/media/sda1/ljz-workspace/dataset/graph_dataset/index_train.json","w"))
 
