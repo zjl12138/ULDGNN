@@ -9,10 +9,12 @@ cfg = CN()
   |__exp_name
      |___records
      |___imgs
+     |___checkpoints
 '''
 
 cfg.outDir = ''
 cfg.exp_name=''
+cfg.model_dir = ''
 
 cfg.recorder = CN()
 cfg.recorder.record_dir=''
@@ -90,13 +92,18 @@ def make_cfg(args):
         with open(current_cfg.parent_cfg, 'r') as f:
             parent_cfg = yacs.load_cfg(f)
         cfg.merge_from_other_cfg(parent_cfg)
-
+    cfg.exp_name=args.exp_name
     cfg.merge_from_other_cfg(current_cfg)
     cfg.recorder.record_dir = os.path.join(cfg.outDir, cfg.exp_name, 'records')
     cfg.visualizer.vis_dir = os.path.join(cfg.outDir, cfg.exp_name, 'imgs')
+    cfg.model_dir=os.path.join(cfg.outDir, cfg.exp_name,"checkpoints")
+    os.makedirs(cfg.recorder.record_dir,exist_ok=True)
+    os.makedirs(cfg.visualizer.vis_dir, exist_ok=True)
+    os.makedirs(cfg.model_dir, exist_ok=True)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--cfg_file", default = "configs/default.yaml",type=str)
+parser.add_argument("--exp_name",type=str)
 parser.add_argument("opts", default=None, nargs=argparse.REMAINDER)
 
 args = parser.parse_args()
