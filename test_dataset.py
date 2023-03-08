@@ -12,5 +12,5 @@ if __name__=='__main__':
         nodes, edges, types,  img_tensor, labels, bboxes, file_list = batch  
         print(nodes.shape)
         print(bboxes.shape)
-        network(batch)
-        #vis.visualize(nodes, bboxes, file_list[0])
+        #network(batch)
+        vis.visualize(nodes, bboxes, file_list[0])

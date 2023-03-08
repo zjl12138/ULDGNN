@@ -21,7 +21,7 @@ class visualizer:
         #print(layer_rects.shape, local_params.shape)
         for layer_rect, local_params in zip(layer_rects, local_params):
             cv2.rectangle(img_1, self.scale_to_img(layer_rect,H,W), (255,0,0),1)
-            cv2.rectangle(img_2, self.scale_to_img(local_params,H,W),(0,255,0),1)
+            cv2.rectangle(img_2, self.scale_to_img(local_params+layer_rect,H,W),(0,255,0),1)
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-layers.png'),img_1)
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-group.png'),img_2)
         

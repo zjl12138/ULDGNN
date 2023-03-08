@@ -72,19 +72,19 @@ cfg.network.cls_fn = CN()
 cfg.network.cls_fn.latent_dims = [256,256]
 cfg.network.cls_fn.act_fn = 'LeakyReLU'
 cfg.network.cls_fn.norm_type = 'BatchNorm1d'
-cfg.network.cls_fn.classes = 2
+cfg.network.cls_fn.classes = 1
 
 cfg.network.loc_fn = CN()
 cfg.network.loc_fn.latent_dims = [256,256]
 cfg.network.loc_fn.act_fn = 'LeakyReLU'
 cfg.network.loc_fn.norm_type = 'BatchNorm1d'
-cfg.network.cls_fn.classes = 4
+cfg.network.loc_fn.classes = 4
 
 cfg.network.cls_loss = CN()
 cfg.network.cls_loss.type = 'focal_loss'
-cfg.network.cls_loss.alpha = 0.5
+cfg.network.cls_loss.alpha = 0.7
 cfg.network.cls_loss.reduction = 'mean'
-cfg.network.cls_loss.gamma = 0.01
+cfg.network.cls_loss.gamma = 2
 cfg.network.cls_loss.weight = 10
 
 cfg.network.reg_loss = CN()

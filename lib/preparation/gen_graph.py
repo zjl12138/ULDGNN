@@ -90,11 +90,12 @@ def generate_single_graph(layer_list, output_path, artboard_height, artboard_wid
         assert(w>=0 and w<=1)
         assert(h>=0 and h<=1)
         layer_rect.append([x, y, w, h])
+        
         root.insert(bboxNode(idx, x, y, x+w, x+h))
         types.append(LAYER_CLASS_MAP[layer['_class']])
         if layer['label']==0 or layer['label']==1:
             labels.append(0)
-            bbox.append([x, y, w, h])
+            bbox.append([0, 0, 0, 0])
         else:
             labels.append(1)
             bbox.append([])
@@ -106,8 +107,8 @@ def generate_single_graph(layer_list, output_path, artboard_height, artboard_wid
         if layer['label']==3:
             tmp_merge_group.append(idx)
         if layer['label']==0 or layer['label']==1:
-                merge_groups.append(tmp_merge_group)
-                tmp_merge_group=[]
+            merge_groups.append(tmp_merge_group)
+            tmp_merge_group=[]
     if len(tmp_merge_group)!=0:
         merge_groups.append(tmp_merge_group)
 
@@ -118,11 +119,12 @@ def generate_single_graph(layer_list, output_path, artboard_height, artboard_wid
             tmp_bbox[0], tmp_bbox[1] = min(tmp_bbox[0],x),min(tmp_bbox[1],y)
             tmp_bbox[2], tmp_bbox[3] = max(tmp_bbox[2],x+w), max(tmp_bbox[3],y+h)
         for idx in merge_group:
-            bbox[idx].extend([tmp_bbox[0],tmp_bbox[1],tmp_bbox[2]-tmp_bbox[0], tmp_bbox[3]-tmp_bbox[1]])
+            x, y, w, h = layer_rect[idx]
+            bbox[idx].extend([tmp_bbox[0]-x,tmp_bbox[1]-y,tmp_bbox[2]-tmp_bbox[0]-w, tmp_bbox[3]-tmp_bbox[1]-h])
     
     assert(len(layer_rect)==len(layer_list))
     assert(len(bbox)==len(layer_list))
-
+    #print(root.num, len(layer_list))
     edges = root.gen_graph()
     json.dump({'layer_rect':layer_rect,'edges':edges,
                 'bbox':bbox, 
