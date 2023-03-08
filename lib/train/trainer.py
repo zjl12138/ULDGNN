@@ -5,7 +5,7 @@ from lib.train.recorder import Recorder
 import time
 import datetime
 import tqdm
-from lib.evaluators.evaluator import evaluator
+from lib.evaluators.evaluator import Evaluator
 from lib.visualizers.visualizer import visualizer
 import torch.nn.functional as F
 
@@ -19,26 +19,29 @@ class Trainer(object):
         self.local_rank = cfg.local_rank
 
     def to_cuda(self, batch):
-        for k in batch:
+        for k, _ in enumerate(batch):
             if isinstance(batch[k], tuple) or isinstance(batch[k], list):
                 batch[k] = [b.to(self.device) if isinstance(b, torch.Tensor) else b for b in batch[k]]
             else:
                 batch[k] = batch[k].to(self.device) if isinstance( batch[k], torch.Tensor) else batch[k]
+        
         return batch
     
     def reduce_loss_stats(self, loss_stats):
         reduced_losses = {k: torch.mean(v) for k, v in loss_stats.items()}
         return reduced_losses
 
-    def train(self, epoch, data_loader, optimizer, recorder:Recorder, evaluator:evaluator):
+    def train(self, epoch, data_loader, optimizer, recorder:Recorder, evaluator:Evaluator):
         max_iter = len(data_loader)
         self.network.train()
         end = time.time()
         for iteration, batch in enumerate(data_loader):
             data_time = time.time() - end
             iteration += 1
-            batch = self.to_cuda(batch)
+            batch = self.to_cuda(list(batch))
+
             output, loss, loss_stats = self.network(batch)
+
             optimizer.zero_grad()
             loss = loss.mean()
             loss.backward()
@@ -72,7 +75,7 @@ class Trainer(object):
                 # record loss_stats and image_dict
                 recorder.record('train')
     
-    def val(self, epoch, data_loader, evaluator:evaluator, recorder:Recorder, visualizer:visualizer=None):
+    def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None):
         self.network.eval()
         torch.cuda.empty_cache()
         val_loss_stats = {}

@@ -13,25 +13,27 @@ class Classifier(nn.Module):
         self.in_dim = cfg.in_dim
         self.latent_dims = cfg.latent_dims
         self.make(cfg)
-
+        
     def make(self, cfg):
-        self.layer_list = []
+        layer_list = []
         in_dim = self.in_dim
-        for latent_dim in self.latent_dims:
-            self.layer_list.append(make_fully_connected_layer(in_dim,
+        
+        for idx, latent_dim in enumerate(self.latent_dims):
+            self.add_module(f'fc_{idx}',make_fully_connected_layer(in_dim,
                                                              latent_dim, 
                                                              cfg.act_fn, 
                                                              cfg.norm_type)
                                   )
             in_dim = latent_dim
 
-        self.layer_list.append(make_fully_connected_layer(self.latent_dims[-1],
+        self.add_module(f'fc_{len(self.latent_dims)+1}',make_fully_connected_layer(self.latent_dims[-1],
                                                           cfg.classes,
                                                           None, None)
                               )
+        
     def forward(self, x):
-        for fc_layer in self.layer_list:
-            x = fc_layer(x)
+        for _, fc_layer in self.named_children():
+             x = fc_layer(x)
         return x
 
 class LayerGNN(nn.Module):
@@ -39,24 +41,24 @@ class LayerGNN(nn.Module):
         super(LayerGNN,self).__init__()
         self.latent_dims = cfg.latent_dims
         self.num_heads = cfg.num_heads
-        self.gnn_layer_list = []
         self.make(cfg)
-
-    def make(self, cfg):
         
+    def make(self, cfg):
+        gnn_layer_list = []
         in_dim = cfg.in_dim
+        L = len(self.latent_dims)+1
         assert(len(self.num_heads)==len(self.latent_dims)+1)
-        for (latent_dim, num_head) in zip(self.latent_dims, self.num_heads[:-1]):
-            self.gnn_layer_list.append(GATLayer(in_dim, latent_dim,
+        for idx, (latent_dim, num_head) in enumerate(zip(self.latent_dims, self.num_heads[:-1])):
+            self.add_module(f'gatlayer_{idx}', GATLayer(in_dim, latent_dim,
                                                  num_head, cfg.batch_norm, 
                                                  cfg.residual, concat = cfg.concat))
             in_dim = latent_dim * num_head if cfg.concat else latent_dim
-        self.gnn_layer_list.append(GATLayer(in_dim, cfg.out_dim, self.num_heads[-1], False, concat=False))
+        self.add_module(f'gatlayer_{L+1}',GATLayer(in_dim, cfg.out_dim, self.num_heads[-1], False, concat=False))
         
     def forward(self, x, edges):
         #print(torch.max(edges))
         #print(x.shape)
-        for gnn_layer in self.gnn_layer_list:
+        for _, gnn_layer in self.named_children():
             x = gnn_layer(x, edges)
         return x
 
@@ -82,11 +84,11 @@ class Network(nn.Module):
         loss_stats = {}
         cls_loss = cls_loss_fn(logits, labels)
         reg_loss = reg_loss_fn(local_params, bboxes)
-        loss_stats['cls_loss'] = cls_loss.item()
-        loss_stats['reg_loss'] = reg_loss.item()
+        loss_stats['cls_loss'] = cls_loss
+        loss_stats['reg_loss'] = reg_loss
         loss =  cfg.cls_loss.weight * cls_loss \
                     + cfg.reg_loss.weight * reg_loss
-        loss_stats['loss'] = loss.item()
+        loss_stats['loss'] = loss
         return loss, loss_stats
 
     def forward(self, batch):
@@ -106,5 +108,7 @@ class Network(nn.Module):
         loss, loss_stats = self.loss([logits, loc_params],[labels,bboxes])
         return (logits, loc_params), loss, loss_stats
 
-
+if __name__=='__main__':
+    network = Network()
+    print(network)
 

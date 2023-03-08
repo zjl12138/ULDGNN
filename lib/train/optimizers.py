@@ -247,6 +247,7 @@ class AdamW(Optimizer):
 _optimizer_factory = {
     'adam':torch.optim.Adam,
     'radam':RAdam,
+    'adamw':torch.optim.AdamW,
     'sgd':torch.optim.SGD
 }
 

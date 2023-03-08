@@ -19,7 +19,6 @@ def collate_fn(batch, collate_img_path=True):
     nodes_inds = np.insert(nodes_inds, 0, 0)
     nodes_inds = np.delete(nodes_inds, -1)
     edges_list = [b[1] for b in batch]
-    print(nodes_inds)
     edges_list = [e+int(i) for e, i in zip(edges_list, nodes_inds)]
     edges = torch.cat(edges_list, dim=1)
     types = [b[2] for b in batch]
@@ -88,7 +87,7 @@ class Dataset(data.Dataset):
             batch.append([layer_rect, edges, types, layer_img, labels, bbox])
             img_split_last_idx += layer_rect.shape[0]
         
-        return *collate_fn(batch, False), artboard_img_path
+        return [*collate_fn(batch, False), artboard_img_path]
 
 if __name__=='__main__':
     cfg = CN()

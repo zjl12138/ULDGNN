@@ -61,6 +61,9 @@ class ImageEmbedder(nn.Module):
         super(ImageEmbedder, self).__init__()
         self.out_dim = cfg.outdim    
         self.feature_extractor = getattr(importlib.import_module('torchvision.models'),cfg.name)(pretrained=True)
+        for k, p in self.feature_extractor.named_parameters():
+            if 'conv' in k or 'bn' in k or "downsample" in k:
+                p.requires_grad = False
         num_channels = self.feature_extractor.fc.in_features
         self.feature_extractor.fc = nn.Linear(num_channels, self.out_dim)
     

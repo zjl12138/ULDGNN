@@ -74,10 +74,10 @@ class ExponentialLR(torch.optim.lr_scheduler._LRScheduler):
 
 def make_scheduler(cfg, optimizer):
     cfg_scheduler = cfg.train.scheduler
-    if cfg_scheduler.type=='multi_step':
-        scheduler = MultiStepLR(optimizer, milestones=cfg_scheduler.milestones,gamma = cfg_scheduler.gamma)
+    if cfg_scheduler=='multi_step':
+        scheduler = MultiStepLR(optimizer, milestones=cfg.train.milestones,gamma = cfg.train.gamma)
 
-    elif cfg_scheduler.type=='exponential':
-        scheduler = ExponentialLR(optimizer, decay_epochs=cfg_scheduler.decay_epochs,
-                                gamma = cfg_scheduler.gamma)
+    elif cfg_scheduler=='exponential':
+        scheduler = ExponentialLR(optimizer, decay_epochs=cfg.train.decay_epochs,
+                                gamma = cfg.train.gamma)
     return scheduler

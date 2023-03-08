@@ -2,20 +2,20 @@ import torch
 import numpy as np
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 
-class evaluator:
+class Evaluator:
     def __init__(self):
         pass
 
     def accuracy(self, logits, target):
-        S = target
+        S = target.cpu().numpy()
         C = np.argmax( torch.nn.Softmax(dim=1)(logits).cpu().detach().numpy() , axis=1 )
         CM = confusion_matrix(S,C).astype(np.float32)
         nb_classes = CM.shape[0]
-        targets = targets.cpu().detach().numpy()
+        target = target.cpu().numpy()
         nb_non_empty_classes = 0
         pr_classes = np.zeros(nb_classes)
         for r in range(nb_classes):
-            cluster = np.where(targets==r)[0]
+            cluster = np.where(target==r)[0]
             if cluster.shape[0] != 0:
                 pr_classes[r] = CM[r,r]/ float(cluster.shape[0])
                 if CM[r,r]>0:
@@ -27,10 +27,16 @@ class evaluator:
 
     def evaluate(self, output, target):
         logits, _ = output
-        logits = logits.cpu().detach().numpy()
-        target = target.cpy().detach().numpy()
-        precision = precision_score(logits, target, average='macro')
-        recall = recall_score(logits, target, average='macro')
-        f1= f1_score(logits,target,average='macro')
         acc = self.accuracy(logits,target)
-        return {'precision':precision, "recall":recall,"f1-score":f1,"accuracy":acc}
+        C = np.argmax( torch.nn.Softmax(dim=1)(logits).cpu().detach().numpy() , axis=1 )
+        target = target.cpu().detach().numpy()
+        precision = precision_score(C, target, average='macro')
+        recall = recall_score(C, target, average='macro')
+        f1 = f1_score(C,target,average='macro')
+        
+        return {
+                'precision': torch.tensor(precision),
+                "recall": torch.tensor(recall),
+                "f1-score": torch.tensor(f1),
+                "accuracy": torch.tensor(acc)
+               }

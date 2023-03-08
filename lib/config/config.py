@@ -35,11 +35,18 @@ cfg.test_dataset.rootDir = '../../dataset/graph_dataset'
 cfg.test_dataset.index_json = 'index_train.json'
 
 cfg.train = CN()
+cfg.train.lr = 1e-4
+cfg.train.weight_decay = 1e-4
+cfg.train.optim = 'adamw'
 cfg.train.batch_size = 4
 cfg.train.local_rank = 0
 cfg.train.log_interval = 10
 cfg.train.record_interval = 10
 cfg.train.shuffle=True
+cfg.train.scheduler = 'exponential'
+cfg.train.milestones = [80, 120, 200, 240]
+cfg.train.decay_epochs = 10
+cfg.train.gamma = 0.5
 
 cfg.test = CN()
 cfg.test.batch_size = 1
@@ -72,7 +79,7 @@ cfg.network.cls_fn = CN()
 cfg.network.cls_fn.latent_dims = [256,256]
 cfg.network.cls_fn.act_fn = 'LeakyReLU'
 cfg.network.cls_fn.norm_type = 'BatchNorm1d'
-cfg.network.cls_fn.classes = 1
+cfg.network.cls_fn.classes = 2
 
 cfg.network.loc_fn = CN()
 cfg.network.loc_fn.latent_dims = [256,256]

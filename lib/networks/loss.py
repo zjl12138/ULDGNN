@@ -11,8 +11,8 @@ class FocalLoss(nn.Module):
         self.reduction = reduction
     
     def forward(self, input, target):
-        p = torch.sigmoid(input)
-        target.unsqueeze_(1)
+        p = F.softmax(input,dim=1)
+        p = p[:,1]
         target=target.float()
         ce = F.binary_cross_entropy_with_logits(p,target)
         p_t = p * target + (1-p)*(1-target)

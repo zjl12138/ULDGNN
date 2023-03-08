@@ -2,7 +2,6 @@ from collections import deque, defaultdict
 import torch
 from tensorboardX import SummaryWriter
 import os
-from lib.config.config import cfg
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
