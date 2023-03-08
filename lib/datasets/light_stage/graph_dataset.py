@@ -19,6 +19,7 @@ def collate_fn(batch, collate_img_path=True):
     nodes_inds = np.insert(nodes_inds, 0, 0)
     nodes_inds = np.delete(nodes_inds, -1)
     edges_list = [b[1] for b in batch]
+    print(nodes_inds)
     edges_list = [e+int(i) for e, i in zip(edges_list, nodes_inds)]
     edges = torch.cat(edges_list, dim=1)
     types = [b[2] for b in batch]
@@ -71,6 +72,8 @@ class Dataset(data.Dataset):
         img_split_last_idx = 0
         nodes = 0
         for idx, graph_path in enumerate(graphs_in_this_arboard):
+            #content['layer_rect'],content['edges'], content['bbox'],content['types'],content['labels']
+
             layer_rect, edges, bbox, types, labels = read_graph_json(graph_path)
             layer_rect = torch.FloatTensor(layer_rect)
             edges = torch.LongTensor(edges).transpose(1,0)

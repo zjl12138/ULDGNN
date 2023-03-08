@@ -82,11 +82,12 @@ class Network(nn.Module):
         loss_stats = {}
         cls_loss = cls_loss_fn(logits, labels)
         reg_loss = reg_loss_fn(local_params, bboxes)
-        loss_stats['cls_loss'] = cls_loss
-        loss_stats['reg_loss'] = reg_loss
-        loss_stats['loss'] = cfg.cls_loss.weight * cls_loss \
-                                + cfg.reg_loss.weight * reg_loss 
-        return loss_stats
+        loss_stats['cls_loss'] = cls_loss.item()
+        loss_stats['reg_loss'] = reg_loss.item()
+        loss =  cfg.cls_loss.weight * cls_loss \
+                    + cfg.reg_loss.weight * reg_loss
+        loss_stats['loss'] = loss.item()
+        return loss, loss_stats
 
     def forward(self, batch):
         #nodes, edges, types,  img_tensor, labels, bboxes, file_list
@@ -102,8 +103,8 @@ class Network(nn.Module):
         loc_params = self.loc_fn(gnn_out)
         #print(logits.shape, loc_params.shape)
 
-        loss_stats = self.loss([logits, loc_params],[labels,bboxes])
-        return (logits, loc_params), loss_stats['loss'], loss_stats
+        loss, loss_stats = self.loss([logits, loc_params],[labels,bboxes])
+        return (logits, loc_params), loss, loss_stats
 
 
 

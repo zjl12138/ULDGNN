@@ -14,7 +14,7 @@ cfg = CFG.train
 class Trainer(object):
     def __init__(self, network):
         self.device = torch.device(f'cuda:{cfg.local_rank}')
-        network = network.to(device)
+        network = network.to(self.device)
         self.network = network
         self.local_rank = cfg.local_rank
 
@@ -83,7 +83,6 @@ class Trainer(object):
             batch = self.to_cuda(batch)
             with torch.no_grad():
                 output, loss, loss_stats = self.network(batch)
-                
                 val_metric_stats = evaluator.evaluate(output, batch[4])
                 loss_stats = self.reduce_loss_stats(loss_stats)
                 
