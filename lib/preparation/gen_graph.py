@@ -234,7 +234,7 @@ def generate_graphs(json_list: List[str],
 if __name__=='__main__':
     json_list = []
     index_train = []
-    for idx in range(8):
+    for idx in range(20):
         json_list.append(f'/media/sda1/ljz-workspace/dataset/ui_dataset/{idx}.json')
         index_train.append({"json": f"{idx}.json", "layerassets":f"{idx}-assets.png", "image":f"{idx}.png"})
         

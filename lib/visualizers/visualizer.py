@@ -11,10 +11,10 @@ class visualizer:
         
         return (int(x[0]*W), int(x[1]*H), int(x[2]*W), int(x[3]*H))
 
-    def visualize(self, layer_rects, local_params, img_path):
-        
+    def visualize_pred(self, layer_rects, local_params,  img_path):
         img_1 = cv2.imread(img_path)
         img_2 = cv2.imread(img_path)
+        
         file_path, artboard_name = os.path.split(img_path)
         artboard_name = artboard_name.split(".")[0]
         H, W, _ = img_1.shape
@@ -24,4 +24,18 @@ class visualizer:
             cv2.rectangle(img_2, self.scale_to_img(local_params+layer_rect,H,W),(0,255,0),1)
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-layers.png'),img_1)
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-group.png'),img_2)
+    
+    def visualize_gt(self, layer_rects, bboxes,  img_path):
+        img_1 = cv2.imread(img_path)
+        img_2 = cv2.imread(img_path)
+        file_path, artboard_name = os.path.split(img_path)
+        artboard_name = artboard_name.split(".")[0]
+        H, W, _ = img_1.shape
+        #print(layer_rects.shape, local_params.shape)
+        for layer_rect, bbox in zip(layer_rects, bboxes):
+            cv2.rectangle(img_1, self.scale_to_img(layer_rect,H,W), (255,0,0),1)
+            cv2.rectangle(img_2, self.scale_to_img(bbox+layer_rect,H,W),(0,255,0),1)
+        cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-layers_gt.png'),img_1)
+        cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-group_gt.png'),img_2)
+
         

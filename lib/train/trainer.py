@@ -83,7 +83,8 @@ class Trainer(object):
         val_metric_stats = {}
 
         for batch in tqdm.tqdm(data_loader):
-            batch = self.to_cuda(batch)
+            batch = self.to_cuda(list(batch))
+            layer_rects, edges, types,  img_tensor, labels, bboxes, file_list = batch
             with torch.no_grad():
                 output, loss, loss_stats = self.network(batch)
                 val_metric_stats = evaluator.evaluate(output, batch[4])
@@ -98,11 +99,15 @@ class Trainer(object):
             
             if visualizer is not None:
                 logits, local_params = output
-                layer_rects = batch[0]
                 pred = torch.max(F.softmax(logits,dim=1), 1)[1]
-                layer_rects = layer_rects[pred==1]
-                local_params = local_params[pred==1]
-                visualizer.visualize(layer_rects,local_params,batch[6][0])
+                #print(layer_rects.shape, pred.shape, labels)
+                pred_fraglayers = layer_rects[pred==1]
+                pred_merging_groups = local_params[pred==1]
+                visualizer.visualize_pred(pred_fraglayers, pred_merging_groups,batch[6][0])
+                fragmented_layers = layer_rects[labels==1]
+                merging_groups = bboxes[labels == 1 ]
+                visualizer.visualize_gt(fragmented_layers, merging_groups, batch[6][0])
+
         
         loss_state = []
         metric_state = []

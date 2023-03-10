@@ -57,6 +57,16 @@ class Recorder(object):
             else:
                 self.writer.add_scalar(pattern.format(k), v, step)
 
+    def state_dict(self):
+       
+        scalar_dict = {}
+        scalar_dict['step'] = self.step
+        return scalar_dict
+
+    def load_state_dict(self, scalar_dict):
+        
+        self.step = scalar_dict['step']
+
     def __str__(self):
         loss_state = []
         for k, v in self.loss_stats.items():
