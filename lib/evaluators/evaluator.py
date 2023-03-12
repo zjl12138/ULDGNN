@@ -24,7 +24,7 @@ class Evaluator:
                 pr_classes[r] = 0.0
         acc = 100.* np.sum(pr_classes)/ float(nb_classes)
         return acc
-
+    
     def evaluate(self, output, target):
         logits, _ = output
         acc = self.accuracy(logits,target)

@@ -21,7 +21,7 @@ def _dataset_factory(is_train):
 def worker_init_fn(worker_id):
     np.random.seed(worker_id + (int(round(time.time() * 1000) % (2**16))))
 
-def make_dataset(cfg, is_train=True):
+def make_dataset(is_train=True):
     return _dataset_factory(is_train)
 
 def make_sampler(batch_size, is_train, dataset,drop_last):
@@ -35,12 +35,13 @@ def make_data_loader(cfg, is_train=True):
         batch_size = cfg.train.batch_size
         drop_last = False
         shuffle = cfg.train.shuffle
+        dataset = make_dataset(True)
     else:
         batch_size = cfg.test.batch_size
         drop_last = False
         shuffle = False
-    
-    dataset = make_dataset(cfg.train_dataset)
+        dataset = make_dataset(False)
+ 
     sampler = make_sampler(batch_size, is_train, dataset, drop_last)
     data_loader = DataLoader(dataset, 
                             batch_sampler=sampler,

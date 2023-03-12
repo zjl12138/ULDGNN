@@ -28,12 +28,14 @@ class Classifier(nn.Module):
 
         self.add_module(f'fc_{len(self.latent_dims)+1}',make_fully_connected_layer(self.latent_dims[-1],
                                                           cfg.classes,
-                                                          None, None)
+                                                          '', '')
                               )
         
-    def forward(self, x):
+    def forward(self, x, clip_val=False):
         for _, fc_layer in self.named_children():
-             x = fc_layer(x)
+            x = fc_layer(x)
+        if clip_val:
+            x = torch.nn.Tanh()(x)
         return x
 
 class LayerGNN(nn.Module):
@@ -78,11 +80,19 @@ class Network(nn.Module):
 
     def loss(self, output, gt):
         logits, local_params = output
-        labels, bboxes = gt
+        layer_rects, labels, bboxes = gt
         cls_loss_fn = make_classifier_loss(cfg.cls_loss)
         reg_loss_fn = make_regression_loss(cfg.reg_loss)
         loss_stats = {}
         cls_loss = cls_loss_fn(logits, labels)
+        
+        local_params = local_params[labels==1]
+        bboxes = bboxes[labels==1]
+        layer_rects =  layer_rects[labels==1]
+
+        local_params = local_params + layer_rects
+        bboxes = bboxes + layer_rects
+
         reg_loss = reg_loss_fn(local_params, bboxes)
         loss_stats['cls_loss'] = cls_loss
         loss_stats['reg_loss'] = reg_loss
@@ -102,10 +112,10 @@ class Network(nn.Module):
         batch_embedding = pos_embedding + type_embedding + img_embedding
         gnn_out = self.gnn_fn(batch_embedding, edges)
         logits = self.cls_fn(gnn_out)
-        loc_params = self.loc_fn(gnn_out)
+        loc_params = self.loc_fn(gnn_out, clip_val=True)
         #print(logits.shape, loc_params.shape)
 
-        loss, loss_stats = self.loss([logits, loc_params],[labels,bboxes])
+        loss, loss_stats = self.loss([logits, loc_params],[layer_rect, labels,bboxes])
         return (logits, loc_params), loss, loss_stats
 
 if __name__=='__main__':

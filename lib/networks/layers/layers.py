@@ -6,16 +6,17 @@ from torch_geometric.nn import GATConv
 import torch.nn.functional as F
 import torch
 
-def make_fully_connected_layer(in_dim, out_dim, act_fn, norm_type):    
+def make_fully_connected_layer(in_dim, out_dim, act_fn='', norm_type=''):    
     fc_layer = nn.Sequential()
     fc_layer.add_module('fc', nn.Linear(in_dim, out_dim))
-    if norm_type is not None:
+    if norm_type != '':
         norm_module = importlib.import_module("torch.nn")
         fc_layer.add_module(norm_type, getattr(norm_module,norm_type)(out_dim))
     if act_fn == 'LeakyReLU':
         #act_module = importlib.import_module("torch.nn")
-        
         fc_layer.add_module(act_fn,torch.nn.LeakyReLU())
+    elif act_fn=='ReLU':
+       fc_layer.add_module(act_fn, torch.nn.ReLUa()) 
     return fc_layer
 
 class GATLayer(nn.Module):

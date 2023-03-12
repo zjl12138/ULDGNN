@@ -64,7 +64,7 @@ def load_model(net,
                epoch=-1):
     if not resume:
         os.system('rm -rf {}'.format(model_dir))
-
+        os.makedirs(model_dir)
     if not os.path.exists(model_dir):
         return 0
 

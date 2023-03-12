@@ -234,13 +234,19 @@ def generate_graphs(json_list: List[str],
 if __name__=='__main__':
     json_list = []
     index_train = []
-    for idx in range(20):
+    for idx in range(4606):
         json_list.append(f'/media/sda1/ljz-workspace/dataset/ui_dataset/{idx}.json')
-        index_train.append({"json": f"{idx}.json", "layerassets":f"{idx}-assets.png", "image":f"{idx}.png"})
+        #index_train.append({"json": f"{idx}.json", "layerassets":f"{idx}-assets.png", "image":f"{idx}.png"})
         
     generate_graphs(json_list, '/media/sda1/ljz-workspace/code/ULGnn/output/log',
     '/media/sda1/ljz-workspace/code/ULGnn/output/profile',
     '/media/sda1/ljz-workspace/dataset/graph_dataset',
         max_threads=8)
-    json.dump(index_train,open("/media/sda1/ljz-workspace/dataset/graph_dataset/index_train.json","w"))
+    #json.dump(index_train,open("/media/sda1/ljz-workspace/dataset/graph_dataset/index_train.json","w"))
+    rootdir="/media/sda1/ljz-workspace/dataset/ui_dataset/"
+    for i in range(4606):
+        os.system(f"cp {rootdir}/{i}.png /media/sda1/ljz-workspace/dataset/graph_dataset/{i}/{i}.png")
+        os.system(f"cp {rootdir}/{i}-assets.png /media/sda1/ljz-workspace/dataset/graph_dataset/{i}/{i}-assets.png")
+        
+    
 

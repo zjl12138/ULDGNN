@@ -44,7 +44,7 @@ class Dataset(data.Dataset):
         self.root = cfg.rootDir
         self.index_json = cfg.index_json
         self.train_list = json.load(open(os.path.join(self.root,self.index_json),'r'))
-       
+        #self.train_list = self.train_list[:20]
         self.img_transform = T.Compose([
             T.ToTensor(),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -56,7 +56,6 @@ class Dataset(data.Dataset):
         return Image.open(path).convert('RGB')
 
     def __getitem__(self, index) :
-        
         train_artboard = self.train_list[index]
         json_name, assets_img = train_artboard['json'], train_artboard['layerassets']
         
