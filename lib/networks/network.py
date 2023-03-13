@@ -92,13 +92,19 @@ class Network(nn.Module):
 
         local_params = local_params + layer_rects
         bboxes = bboxes + layer_rects
-
-        reg_loss = reg_loss_fn(local_params, bboxes)
+        
+        #print(local_params, bboxes)
+        if local_params.shape[0]==0:
+            reg_loss = torch.tensor(0.).to(local_params.get_device())
+        else:
+            reg_loss = reg_loss_fn(local_params, bboxes)
+        
         loss_stats['cls_loss'] = cls_loss
         loss_stats['reg_loss'] = reg_loss
         loss =  cfg.cls_loss.weight * cls_loss \
                     + cfg.reg_loss.weight * reg_loss
-        loss_stats['loss'] = loss
+        
+        loss_stats['loss'] = reg_loss
         return loss, loss_stats
 
     def forward(self, batch):
@@ -115,7 +121,7 @@ class Network(nn.Module):
         loc_params = self.loc_fn(gnn_out, clip_val=True)
         #print(logits.shape, loc_params.shape)
 
-        loss, loss_stats = self.loss([logits, loc_params],[layer_rect, labels,bboxes])
+        loss, loss_stats = self.loss([logits, loc_params],[layer_rect, labels, bboxes])
         return (logits, loc_params), loss, loss_stats
 
 if __name__=='__main__':

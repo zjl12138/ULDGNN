@@ -88,19 +88,19 @@ class Trainer(object):
             layer_rects, edges, types,  img_tensor, labels, bboxes, file_list = batch
             with torch.no_grad():
                 output, loss, loss_stats = self.network(batch)
-                #val_metric_stats = evaluator.evaluate(output, batch[4])
+                val_stats = evaluator.evaluate(output, batch[4])
                 logits, local_params = output
-                
-                pred_list.append(logits)
+                '''pred_list.append(logits)
                 label_list.append(labels)
+                '''
                 loss_stats = self.reduce_loss_stats(loss_stats)
                 
             for k, v in loss_stats.items():
                 val_loss_stats.setdefault(k, 0)
                 val_loss_stats[k] += v
-            #for k, v in val_metric_stats.items():
-            #    val_metric_stats.setdefault(k, 0)
-            #    val_metric_stats[k] += v
+            for k, v in val_stats.items():
+                val_metric_stats.setdefault(k, 0)
+                val_metric_stats[k] += v
             
             if visualizer is not None:
                 logits, local_params = output
@@ -114,7 +114,7 @@ class Trainer(object):
                 visualizer.visualize_gt(fragmented_layers, merging_groups, batch[6][0])
 
         
-        val_metric_stats = evaluator.evaluate((torch.cat(pred_list),None), torch.cat(label_list))
+        #val_metric_stats = evaluator.evaluate((torch.cat(pred_list),None), torch.cat(label_list))
 
         loss_state = []
         metric_state = []
@@ -122,7 +122,7 @@ class Trainer(object):
             val_loss_stats[k] /= data_size
             loss_state.append('{}: {:.4f}'.format(k, val_loss_stats[k]))
         for k in val_metric_stats.keys():
-            #val_metric_stats[k] /= data_size
+            val_metric_stats[k] /= data_size
             metric_state.append('{}: {:.4f}'.format(k, val_metric_stats[k]))
         print(loss_state,metric_state)
 

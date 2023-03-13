@@ -7,6 +7,9 @@ from lib.train import make_optimizer, make_recorder, make_scheduler, make_traine
 from lib.evaluators import Evaluator
 from lib.utils import load_model, save_model
 
+torch.backends.cudnn.enabled = True
+torch.backends.cudnn.benchmark = True
+
 def train(cfg, network):
     trainer = make_trainer(network)
     optimizer = make_optimizer(cfg, network)

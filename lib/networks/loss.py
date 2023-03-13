@@ -52,8 +52,8 @@ def ciou_loss(box1, box2):
     # 计算iou
     intersect_mins = torch.max(b1_mins, b2_mins)
     intersect_maxs = torch.min(b1_maxs, b2_maxs)
-    intersect_wh = torch.max(intersect_maxs - intersect_mins, torch.zero_like(intersect_maxs))
-    intersect_area = intersect_wh[..., 0] * intersect_area[..., 1]
+    intersect_wh = torch.max(intersect_maxs - intersect_mins, torch.zeros_like(intersect_maxs))
+    intersect_area = intersect_wh[..., 0] * intersect_wh[..., 1]
     b1_area = b1_wh[..., 0] * b1_wh[..., 1]
     b2_area = b2_wh[..., 0] * b2_wh[..., 1]
     union_area = b1_area + b2_area - intersect_area
@@ -79,4 +79,6 @@ def make_classifier_loss(cfg):
 def make_regression_loss(cfg):
     if cfg.type=='huber_loss':
         return torch.nn.HuberLoss(cfg.reduction, cfg.delta) 
+    elif cfg.type=='ciou_loss':
+        return ciou_loss
    
