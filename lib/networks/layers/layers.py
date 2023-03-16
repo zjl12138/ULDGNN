@@ -16,7 +16,7 @@ def make_fully_connected_layer(in_dim, out_dim, act_fn='', norm_type=''):
         #act_module = importlib.import_module("torch.nn")
         fc_layer.add_module(act_fn,torch.nn.LeakyReLU())
     elif act_fn=='ReLU':
-       fc_layer.add_module(act_fn, torch.nn.ReLUa()) 
+       fc_layer.add_module(act_fn, torch.nn.ReLU()) 
     return fc_layer
 
 class GATLayer(nn.Module):

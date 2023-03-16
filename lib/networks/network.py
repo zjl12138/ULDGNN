@@ -104,7 +104,7 @@ class Network(nn.Module):
         loss =  cfg.cls_loss.weight * cls_loss \
                     + cfg.reg_loss.weight * reg_loss
         
-        loss_stats['loss'] = reg_loss
+        loss_stats['loss'] = loss
         return loss, loss_stats
 
     def forward(self, batch):
@@ -118,7 +118,7 @@ class Network(nn.Module):
         batch_embedding = pos_embedding + type_embedding + img_embedding
         gnn_out = self.gnn_fn(batch_embedding, edges)
         logits = self.cls_fn(gnn_out)
-        loc_params = self.loc_fn(gnn_out, clip_val=True)
+        loc_params = self.loc_fn(gnn_out)
         #print(logits.shape, loc_params.shape)
 
         loss, loss_stats = self.loss([logits, loc_params],[layer_rect, labels, bboxes])

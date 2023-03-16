@@ -37,7 +37,7 @@ cfg.test_dataset.index_json = 'index_test.json'
 cfg.train = CN()
 cfg.train.save_ep = 10
 cfg.train.eval_ep = 10
-cfg.train.vis_ep = 11
+cfg.train.vis_ep = 110
 cfg.train.epoch = 1000
 cfg.train.lr = 1e-4
 cfg.train.weight_decay = 1e-4
@@ -81,13 +81,15 @@ cfg.network.gnn_fn.residual = True
 cfg.network.gnn_fn.batch_norm = True
 
 cfg.network.cls_fn = CN()
-cfg.network.cls_fn.latent_dims = [256,256]
+#cfg.network.cls_fn.latent_dims = [256,256]
+cfg.network.cls_fn.latent_dims = [64,64]
 cfg.network.cls_fn.act_fn = 'LeakyReLU'
 cfg.network.cls_fn.norm_type = ''
 cfg.network.cls_fn.classes = 2
 
 cfg.network.loc_fn = CN()
-cfg.network.loc_fn.latent_dims = [256,256]
+#cfg.network.loc_fn.latent_dims = [256,256]
+cfg.network.loc_fn.latent_dims = [64,64]
 cfg.network.loc_fn.act_fn = 'LeakyReLU'
 cfg.network.loc_fn.norm_type = ''
 cfg.network.loc_fn.classes = 4
@@ -103,7 +105,7 @@ cfg.network.reg_loss = CN()
 cfg.network.reg_loss.type = 'huber_loss'
 cfg.network.reg_loss.reduction = 'mean'
 cfg.network.reg_loss.delta = 0.5
-cfg.network.reg_loss.weight = 100
+cfg.network.reg_loss.weight = 10
 
 def make_cfg(args):
     
