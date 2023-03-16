@@ -3,7 +3,7 @@ output/
 __pycache__/
 *.py[cod]
 *$py.class
-
+logout/
 # C extensions
 *.so
 

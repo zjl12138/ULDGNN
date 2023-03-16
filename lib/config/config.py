@@ -66,7 +66,7 @@ cfg.network.pos_embedder.out_dim=512
 
 cfg.network.type_embedder = CN()
 cfg.network.type_embedder.out_dim = 512
-cfg.network.type_embedder.class_num = 14 
+cfg.network.type_embedder.class_num = 11
 
 cfg.network.img_embedder = CN()
 cfg.network.img_embedder.outdim = 512
