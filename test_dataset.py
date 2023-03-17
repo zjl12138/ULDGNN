@@ -9,16 +9,10 @@ from lib.utils import load_model, save_model
 from tqdm import tqdm
 
 if __name__=='__main__':
+    cfg.test_dataset.rootDir = '../../dataset/graph_dataset_test'
     dataloader = make_data_loader(cfg,is_train=False)
     vis = visualizer(cfg.visualizer)
-    network = make_network(cfg.network)
-    
-    optim = make_optimizer(cfg, network)
-    sched = make_scheduler(cfg, optim)
-    trainer = make_trainer(network)
-    recorder = make_recorder(cfg.recorder)
-    evaluator = Evaluator()
-    
+
     #trainer.train(0, dataloader, optim, recorder, evaluator )
     for batch in tqdm(dataloader):
         #network(batch)

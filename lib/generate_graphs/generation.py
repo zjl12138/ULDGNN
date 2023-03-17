@@ -107,8 +107,7 @@ async def generate_single_graph(layer_list, output_path, artboard_height, artboa
     layer_rect = []
     bbox = []
     types = []
-    merge_groups = []
-    tmp_merge_group = []
+  
     for idx, layer in enumerate(layer_list):
         x, y, w, h = layer['layer_rect']
         x, y, w, h = x / artboard_width, y / artboard_height, w / artboard_width, h / artboard_height
@@ -121,12 +120,12 @@ async def generate_single_graph(layer_list, output_path, artboard_height, artboa
         #print(root.num)
         root.insert(bboxNode(root.num, x, y, x+w, x+h))
         types.append(LAYER_CLASS_MAP[layer['class']])
-        if layer['label']==0:
+        if layer['label'] == 0:
             labels.append(0)
             bbox.append([0, 0, 0, 0])
         else:
             bbox_x, bbox_y, bbox_w, bbox_h = layer['bbox']
-            bbox_x, bbox_y, bbox_w, bbox_h = x / artboard_width, y / artboard_height, w / artboard_width, h / artboard_height
+            bbox_x, bbox_y, bbox_w, bbox_h = bbox_x / artboard_width, bbox_y / artboard_height, bbox_w / artboard_width, bbox_h / artboard_height
             bbox_x, bbox_y, bbox_w, bbox_h = clip_val(bbox_x), clip_val(bbox_y), clip_val(bbox_w), clip_val(bbox_h)
             labels.append(1)
             bbox.append([bbox_x-x, bbox_y-y,bbox_w-w,bbox_h-h])
@@ -148,7 +147,7 @@ def clip_val(x, lower, upper):
     x = x if x <=upper else upper
     return x
 
-async def generate_graph(img_path:str, json_path:str, output_dir:str, folder_name):
+async def generate_graph(artboard_img, img_path:str, json_path:str, output_dir:str, folder_name):
     global Artboard_index
     
     artboard_json = json.load(open(json_path,"r"))
@@ -164,7 +163,6 @@ async def generate_graph(img_path:str, json_path:str, output_dir:str, folder_nam
     split_num = 0
     merge_state = False
     
-    artboard_img = Image.open(img_path).convert("RGBA")
     assest_image = Image.new("RGBA", (64, 64 * len(artboard_json['layers'])),
                                  (255, 255, 255, 255))
     
@@ -203,8 +201,8 @@ async def generate_graph(img_path:str, json_path:str, output_dir:str, folder_nam
   
     assert(sum==len(artboard_json['layers']))
           
-def generate_graph_sync(img_path, json_path, output_dir,folder_name):
-    return asyncio.run( generate_graph(img_path, json_path, output_dir,folder_name) )
+def generate_graph_sync(artboard_img, img_path, json_path, output_dir,folder_name):
+    return asyncio.run( generate_graph(artboard_img, img_path, json_path, output_dir,folder_name) )
 
 class GenerateGraphsThread(ProfileLoggingThread):
     def __init__(self, 
@@ -226,13 +224,18 @@ class GenerateGraphsThread(ProfileLoggingThread):
                 return  
             artboard_path = self.artboard_queue.get()
             self.logger.info(f"Generating graph for {artboard_path}")
-            lock.acquire()
-            folder_name = str(Artboard_index)
-            Artboard_index+=1
-            lock.release()
             json_path = os.path.join(artboard_path,"artboard.json")
             img_path = os.path.join(artboard_path,"artboard.png")
-            generate_graph_sync(img_path, json_path, self.output_dir, folder_name)
+            
+            artboard_img = Image.open(img_path).convert("RGBA")
+            if (np.array(artboard_img)==0).all():
+                pass
+            else:
+                lock.acquire()
+                folder_name = str(Artboard_index)
+                Artboard_index+=1
+                lock.release()
+                generate_graph_sync(artboard_img, img_path, json_path, self.output_dir, folder_name)
             self.pbar.update()
             self.artboard_queue.task_done()
 
@@ -268,13 +271,13 @@ def generate_graphs(artboard_list: List[str],
     artboard_queue.join()
 
 if __name__=='__main__':
-    rootdir=""
-    outDir = ""
-    logdir = 'logout'
+    rootdir="/Users/clq2021/Desktop/ljz-workspace/data/tmp/"
+    outDir = "/Users/clq2021/Desktop/ljz-workspace/data/graph_dataset_test/"
+    logdir = 'out'
     os.makedirs(outDir, exist_ok=True)
     os.makedirs(logdir, exist_ok=True)
     
-    indexes = 10
+    indexes = 31
     artboard_list = [] 
     index_train = []
     for idx in range(indexes):
