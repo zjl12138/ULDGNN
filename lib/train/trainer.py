@@ -116,7 +116,8 @@ class Trainer(object):
                 fragmented_layers = layer_rects[labels==1]
                 merging_groups = bboxes[labels == 1 ]
                 visualizer.visualize_gt(fragmented_layers, merging_groups, batch[6][0])
-
+                #visualizer.visualize_nms(scores.cpu(), fragmented_layers.cpu(), merging_groups.cpu(),batch[6][0])
+                
         
         #val_metric_stats = evaluator.evaluate((torch.cat(pred_list),None), torch.cat(label_list))
 
