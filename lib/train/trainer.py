@@ -104,11 +104,15 @@ class Trainer(object):
             
             if visualizer is not None:
                 logits, local_params = output
-                pred = torch.max(F.softmax(logits,dim=1), 1)[1]
+                scores, pred = torch.max(F.softmax(logits,dim=1), 1)
+            
                 #print(layer_rects.shape, pred.shape, labels)
-                pred_fraglayers = layer_rects[pred==1]
-                pred_merging_groups = local_params[pred==1]
+                pred_fraglayers = layer_rects[labels==1]
+                pred_merging_groups = local_params[labels==1]
+                scores = scores [labels==1]
                 visualizer.visualize_pred(pred_fraglayers, pred_merging_groups,batch[6][0])
+                visualizer.visualize_nms(scores.cpu(), pred_fraglayers.cpu(),pred_merging_groups.cpu(),batch[6][0])
+                
                 fragmented_layers = layer_rects[labels==1]
                 merging_groups = bboxes[labels == 1 ]
                 visualizer.visualize_gt(fragmented_layers, merging_groups, batch[6][0])

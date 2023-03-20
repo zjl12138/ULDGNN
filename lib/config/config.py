@@ -2,6 +2,7 @@ from .yacs import CfgNode as CN
 from . import yacs
 import argparse
 import os
+import yaml
 
 '''
 --outDir
@@ -9,6 +10,7 @@ import os
      |___records
      |___imgs
      |___checkpoints
+     |___configs
 '''
 
 cfg = CN()
@@ -25,26 +27,26 @@ cfg.visualizer.vis_dir =''
 cfg.train_dataset = CN()
 cfg.train_dataset.module = 'lib.datasets.light_stage.graph_dataset'
 cfg.train_dataset.path = 'lib/datasets/light_stage/graph_dataset.py'
-cfg.train_dataset.rootDir = '../../dataset/graph_dataset'
+cfg.train_dataset.rootDir = '../../dataset/fewshot_dataset'
 cfg.train_dataset.index_json = 'index_train.json'
 
 cfg.test_dataset = CN()
 cfg.test_dataset.module = 'lib.datasets.light_stage.graph_dataset'
 cfg.test_dataset.path = 'lib/datasets/light_stage/graph_dataset.py'
-cfg.test_dataset.rootDir = '../../dataset/graph_dataset'
+cfg.test_dataset.rootDir = '../../dataset/fewshot_dataset'
 cfg.test_dataset.index_json = 'index_test.json'
 
 cfg.train = CN()
 cfg.train.save_ep = 10
 cfg.train.eval_ep = 10
-cfg.train.vis_ep = 110
-cfg.train.epoch = 1000
+cfg.train.vis_ep = 20
+cfg.train.epoch = 2000
 cfg.train.lr = 1e-4
 cfg.train.weight_decay = 1e-4
 cfg.train.optim = 'adamw'
-cfg.train.batch_size = 8
+cfg.train.batch_size = 4
 cfg.train.local_rank = 0
-cfg.train.log_interval = 100
+cfg.train.log_interval = 1
 cfg.train.record_interval = 10
 cfg.train.shuffle=True
 cfg.train.scheduler = 'exponential'
@@ -81,15 +83,15 @@ cfg.network.gnn_fn.residual = True
 cfg.network.gnn_fn.batch_norm = True
 
 cfg.network.cls_fn = CN()
-#cfg.network.cls_fn.latent_dims = [256,256]
-cfg.network.cls_fn.latent_dims = [64,64]
+cfg.network.cls_fn.latent_dims = [256,256]
+#cfg.network.cls_fn.latent_dims = [64,64]
 cfg.network.cls_fn.act_fn = 'LeakyReLU'
 cfg.network.cls_fn.norm_type = ''
 cfg.network.cls_fn.classes = 2
 
 cfg.network.loc_fn = CN()
-#cfg.network.loc_fn.latent_dims = [256,256]
-cfg.network.loc_fn.latent_dims = [64,64]
+cfg.network.loc_fn.latent_dims = [256,256]
+#cfg.network.loc_fn.latent_dims = [64,64]
 cfg.network.loc_fn.act_fn = 'LeakyReLU'
 cfg.network.loc_fn.norm_type = ''
 cfg.network.loc_fn.classes = 4
@@ -102,10 +104,10 @@ cfg.network.cls_loss.gamma = 2
 cfg.network.cls_loss.weight = 1
 
 cfg.network.reg_loss = CN()
-cfg.network.reg_loss.type = 'huber_loss'
+cfg.network.reg_loss.type = 'mse_loss'
 cfg.network.reg_loss.reduction = 'mean'
 cfg.network.reg_loss.delta = 0.5
-cfg.network.reg_loss.weight = 10
+cfg.network.reg_loss.weight = 100
 
 def make_cfg(args):
     
@@ -120,10 +122,13 @@ def make_cfg(args):
     cfg.recorder.record_dir = os.path.join(cfg.outDir, cfg.exp_name, 'records')
     cfg.visualizer.vis_dir = os.path.join(cfg.outDir, cfg.exp_name, 'imgs')
     cfg.model_dir=os.path.join(cfg.outDir, cfg.exp_name,"checkpoints")
+    cfg.config_dir = os.path.join(cfg.outDir, cfg.exp_name,"configs")
     print(cfg.model_dir)
     os.makedirs(cfg.recorder.record_dir,exist_ok=True)
     os.makedirs(cfg.visualizer.vis_dir, exist_ok=True)
     os.makedirs(cfg.model_dir, exist_ok=True)
+    os.makedirs(cfg.config_dir, exist_ok=True)
+    yaml.dump(cfg, open(os.path.join(cfg.config_dir,"config.yaml"),"w"))
     
 parser = argparse.ArgumentParser()
 parser.add_argument("--cfg_file", default = "configs/default.yaml",type=str)

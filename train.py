@@ -38,7 +38,7 @@ def train(cfg, network):
         if (epoch+1) % cfg.train.eval_ep == 0:
             trainer.val(epoch, val_loader, evaluator, recorder, None)
         
-        elif (epoch+1) % cfg.train.vis_ep == 0:
+        if (epoch+1) % cfg.train.vis_ep == 0:
             trainer.val(epoch, val_loader, evaluator, recorder, vis)
         
 

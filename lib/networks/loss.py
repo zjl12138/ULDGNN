@@ -81,4 +81,6 @@ def make_regression_loss(cfg):
         return torch.nn.HuberLoss(cfg.reduction, cfg.delta) 
     elif cfg.type=='ciou_loss':
         return ciou_loss
+    elif cfg.type=='mse_loss':
+        return torch.nn.MSELoss()
    

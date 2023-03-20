@@ -6,7 +6,8 @@ __pycache__/
 logout/
 # C extensions
 *.so
-
+out/
+nohup.out
 # Distribution / packaging
 .Python
 build/

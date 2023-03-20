@@ -85,13 +85,14 @@ class Network(nn.Module):
         reg_loss_fn = make_regression_loss(cfg.reg_loss)
         loss_stats = {}
         cls_loss = cls_loss_fn(logits, labels)
+        assert(torch.sum(bboxes[labels==0]).item()<1e-8)
         
         local_params = local_params[labels==1]
         bboxes = bboxes[labels==1]
         layer_rects =  layer_rects[labels==1]
-
-        local_params = local_params + layer_rects
-        bboxes = bboxes + layer_rects
+        
+        #local_params = local_params + layer_rects
+        #bboxes = bboxes + layer_rects
         
         #print(local_params, bboxes)
         if local_params.shape[0]==0:
@@ -103,8 +104,8 @@ class Network(nn.Module):
         loss_stats['reg_loss'] = reg_loss
         loss =  cfg.cls_loss.weight * cls_loss \
                     + cfg.reg_loss.weight * reg_loss
-        
-        loss_stats['loss'] = loss
+        loss = cfg.reg_loss.weight * reg_loss
+        loss_stats['loss'] =  loss
         return loss, loss_stats
 
     def forward(self, batch):
@@ -118,7 +119,7 @@ class Network(nn.Module):
         batch_embedding = pos_embedding + type_embedding + img_embedding
         gnn_out = self.gnn_fn(batch_embedding, edges)
         logits = self.cls_fn(gnn_out)
-        loc_params = self.loc_fn(gnn_out)
+        loc_params = self.loc_fn(gnn_out, clip_val = True)
         #print(logits.shape, loc_params.shape)
 
         loss, loss_stats = self.loss([logits, loc_params],[layer_rect, labels, bboxes])

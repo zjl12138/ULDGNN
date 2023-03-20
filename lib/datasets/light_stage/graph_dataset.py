@@ -56,8 +56,11 @@ class Dataset(data.Dataset):
         return Image.open(path).convert('RGB')
 
     def __getitem__(self, index) :
+        
         train_artboard = self.train_list[index]
         json_name, assets_img = train_artboard['json'], train_artboard['layerassets']
+        
+        #print(assets_img)
         
         artboard_idx = json_name.split(".")[0]
         graphs_in_this_arboard = glob.glob(os.path.join(self.root, artboard_idx)+"/*.json")
