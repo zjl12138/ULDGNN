@@ -21,7 +21,7 @@
        ....
     ...
 '''
-
+import math
 import cProfile
 import logging
 from abc import ABC, abstractmethod
@@ -170,15 +170,17 @@ async def generate_graph(artboard_json, artboard_img:Image, img_path:str, json_p
     split_num = 0
     merge_state = False
     
-    assest_image = Image.new("RGBA", (64, 64 * len(artboard_json['layers'])),
-                                 (255, 255, 255, 255))
     
     copy_artboard_path = os.path.join(output_dir, file_name+".png")
     os.system(f"cp {img_path} {copy_artboard_path}")
-   
+    layer_img_list = []
+    remove_non_valid_layers=0    
     for idx, layer in enumerate(artboard_json['layers']):
         x, y, w, h = layer['layer_rect']
         x1, y1, x2, y2 = clip_val(x, 0,  artboard_width), clip_val(y, 0, artboard_height), clip_val(x+w,0,artboard_width), clip_val(y+h,0,artboard_height)
+        if abs(x2-x1) < 1 or abs(y2-y1)<1:
+            remove_non_valid_layers += 1
+            continue
         if layer['label'] == 1 :
             merge_state=True
             bbox_x, bbox_y, bbox_w, bbox_h = layer['bbox']
@@ -190,7 +192,7 @@ async def generate_graph(artboard_json, artboard_img:Image, img_path:str, json_p
             merge_state = False
             
         layer_img = artboard_img.crop((x1,y1,x2,y2)).resize((64,64),resample=Image.BICUBIC)
-        assest_image.paste(layer_img, (0, idx*64))
+        layer_img_list.append(layer_img)
         
         tmp_list.append(layer)
         if len(artboard_json['layers']) - idx < 10:
@@ -200,7 +202,13 @@ async def generate_graph(artboard_json, artboard_img:Image, img_path:str, json_p
         if len(tmp_list)>=20:
             split_layers.append(tmp_list)
             tmp_list = []
-            
+    
+    assest_image = Image.new("RGBA", (64, 64 * len(layer_img_list)),
+                                 (255, 255, 255, 255))
+    
+    for idx, layer_img in enumerate(layer_img_list):
+        assest_image.paste(layer_img, (0, idx*64))
+          
     assest_image.save(os.path.join(output_dir, file_name+"-assets.png"))
     
     if len(tmp_list)!=0:
@@ -215,8 +223,9 @@ async def generate_graph(artboard_json, artboard_img:Image, img_path:str, json_p
         await generate_single_graph(layer_list,
                         os.path.join(output_dir, file_name+f"-{idx}.json"),
                         artboard_height,artboard_width)
-  
-    assert(sum==len(artboard_json['layers']))
+    #print(remove_non_valid_layers, sum ,len(artboard_json['layers']))
+    
+    assert(sum==len(artboard_json['layers'])-remove_non_valid_layers)
           
 def generate_graph_sync(artboard_json, artboard_img, img_path, json_path, output_dir,folder_name):
     return asyncio.run( generate_graph(artboard_json, artboard_img, img_path, json_path, output_dir,folder_name) )

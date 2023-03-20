@@ -39,7 +39,7 @@ cfg.test_dataset.index_json = 'index_test.json'
 cfg.train = CN()
 cfg.train.save_ep = 10
 cfg.train.eval_ep = 10
-cfg.train.vis_ep = 20
+cfg.train.vis_ep = 100
 cfg.train.epoch = 2000
 cfg.train.lr = 1e-4
 cfg.train.weight_decay = 1e-4
@@ -104,7 +104,7 @@ cfg.network.cls_loss.gamma = 2
 cfg.network.cls_loss.weight = 1
 
 cfg.network.reg_loss = CN()
-cfg.network.reg_loss.type = 'mse_loss'
+cfg.network.reg_loss.type = 'ciou_loss'
 cfg.network.reg_loss.reduction = 'mean'
 cfg.network.reg_loss.delta = 0.5
 cfg.network.reg_loss.weight = 100

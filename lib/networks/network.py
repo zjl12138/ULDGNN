@@ -91,8 +91,8 @@ class Network(nn.Module):
         bboxes = bboxes[labels==1]
         layer_rects =  layer_rects[labels==1]
         
-        #local_params = local_params + layer_rects
-        #bboxes = bboxes + layer_rects
+        local_params = local_params + layer_rects
+        bboxes = bboxes + layer_rects
         
         #print(local_params, bboxes)
         if local_params.shape[0]==0:
@@ -104,7 +104,7 @@ class Network(nn.Module):
         loss_stats['reg_loss'] = reg_loss
         loss =  cfg.cls_loss.weight * cls_loss \
                     + cfg.reg_loss.weight * reg_loss
-        loss = cfg.reg_loss.weight * reg_loss
+        #loss = cfg.reg_loss.weight * reg_loss
         loss_stats['loss'] =  loss
         return loss, loss_stats
 
