@@ -1,5 +1,5 @@
 import torch
-
+'''
 def IoU(single_box, box_list):
     left_up_corner = torch.maximum(single_box[0:2], box_list[:,0:2])
     right_down_corner = torch.minimum(single_box[2:4], box_list[:,2:4])
@@ -22,6 +22,28 @@ def IoU(single_box, box_list):
             - inter
     iou = inter / union
  
+    return iou'''
+    
+def IoU(box1, box2):
+    b1_xy = box1[..., :2]
+    b1_wh = box1[..., 2:4]
+    #b1_wh_half = b1_wh / 2
+    b1_mins = b1_xy 
+    b1_maxs = b1_xy + b1_wh
+
+    b2_xy = box2[..., :2]
+    b2_wh = box2[..., 2:4]
+    #b2_wh_half = b2_wh / 2
+    b2_mins = b2_xy
+    b2_maxs = b2_xy + b2_wh
+    intersect_mins = torch.max(b1_mins, b2_mins)
+    intersect_maxs = torch.min(b1_maxs, b2_maxs)
+    intersect_wh = torch.max(intersect_maxs - intersect_mins, torch.zeros_like(intersect_maxs))
+    intersect_area = intersect_wh[..., 0] * intersect_wh[..., 1]
+    b1_area = b1_wh[..., 0] * b1_wh[..., 1]
+    b2_area = b2_wh[..., 0] * b2_wh[..., 1]
+    union_area = b1_area + b2_area - intersect_area
+    iou = intersect_area / torch.clamp(union_area, min=1e-6)
     return iou
 
 def nms_merge(bboxes:torch.Tensor, scores:torch.Tensor, threshold=0.45):
@@ -50,7 +72,8 @@ def nms_merge(bboxes:torch.Tensor, scores:torch.Tensor, threshold=0.45):
         merged_bboxes = torch.cat((single_box[None,...], overlapped_bboxes),dim=0)
         final_bbox, _ = torch.median(merged_bboxes,dim=0)
         
-        final_bbox[2:4] = final_bbox[2:4] - final_bbox[0:2]
+        #final_bbox[2:4] = final_bbox[2:4] - final_bbox[0:2]
+        
         bbox_results.append(final_bbox)
         bboxes = bbox_list[~overlapped,:]
    

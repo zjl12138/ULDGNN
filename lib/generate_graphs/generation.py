@@ -304,15 +304,17 @@ def generate_graphs(artboard_list: List[str],
     
 if __name__=='__main__':
     rootdir="/media/sda1/ljz-workspace/dataset/aliartboards/"
-    outDir = "/media/sda1/ljz-workspace/dataset/fewshot_dataset/"
+    outDir = "/media/sda1/ljz-workspace/dataset/new_graph_dataset/"
     logdir = 'out'
     os.makedirs(outDir, exist_ok=True)
     os.makedirs(logdir, exist_ok=True)
     
-    indexes = 11
+    indexes = 4143
     artboard_list = [] 
     index_train = []
     for idx in range(indexes):
+        if idx==1150:
+            continue
         artboard_list.append(f'{rootdir}{idx}')
         #index_train.append({"json": f"{idx}.json", "layerassets":f"{idx}-assets.png", "image":f"{idx}.png"})
         

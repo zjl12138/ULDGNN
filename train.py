@@ -24,7 +24,9 @@ def train(cfg, network):
                             cfg.train.resume)
 
     train_loader = make_data_loader(cfg, is_train=True)
+    print("Training artboards: ",len(train_loader))
     val_loader = make_data_loader(cfg, is_train=False)
+    print("validating artboards: ",len(val_loader))
     vis = visualizer(cfg.visualizer)
     for epoch in range(begin_epoch, cfg.train.epoch):
         #trainer.val(epoch, val_loader, evaluator, recorder, None)

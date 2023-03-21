@@ -41,7 +41,7 @@ class visualizer:
     def visualize_nms(self, scores, layer_rects:torch.Tensor, bboxes:torch.Tensor, img_path, threshold=0.3):
         img_1 = cv2.imread(img_path)
         bboxes = bboxes + layer_rects
-        bboxes[:,2:4] = bboxes[:,2:4] + bboxes[:,0:2]  # x,y,w h -> x1,y1,x2,y2
+        #bboxes[:,2:4] = bboxes[:,2:4] + bboxes[:,0:2]  # x,y,w h -> x1,y1,x2,y2
         bbox_results = nms_merge(bboxes, scores, threshold)
         
         file_path, artboard_name = os.path.split(img_path)
