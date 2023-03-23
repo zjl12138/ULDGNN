@@ -10,8 +10,10 @@ def save_model(net, optim, scheduler, recorder, model_dir, epoch, last=False):
         'epoch': epoch
     }
     if last:
+        print("saving model in epoch ", epoch)
         torch.save(model, os.path.join(model_dir, 'latest.pth'))
     else:
+        print("saving model in epoch ", epoch)
         torch.save(model, os.path.join(model_dir, '{}.pth'.format(epoch)))
 
     # remove previous pretrained model if the number of models is too big

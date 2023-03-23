@@ -9,6 +9,7 @@ class Evaluator:
     def accuracy(self, logits, target):
         S = target.cpu().numpy()
         C = np.argmax( torch.nn.Softmax(dim=1)(logits).cpu().detach().numpy() , axis=1 )
+        #print(C)
         CM = confusion_matrix(S,C).astype(np.float32)
         nb_classes = CM.shape[0]
         target = target.cpu().numpy()
@@ -32,7 +33,7 @@ class Evaluator:
         target = target.cpu().detach().numpy()
         precision = precision_score(C, target, average='macro')
         recall = recall_score(C, target, average='macro')
-        f1 = f1_score(C,target,average='macro')
+        f1 = f1_score(C,target,average='micro')
         
         return {
                 'precision': torch.tensor(precision),

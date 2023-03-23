@@ -18,7 +18,7 @@ import torch.distributed as dist
 import torchvision
 from packaging import version
 from torch import Tensor
-from sketch_model.configs import SketchModelConfig
+
 if version.parse(torchvision.__version__) < version.parse('0.7'):
     from torchvision.ops import _new_empty_tensor
     from torchvision.ops.misc import _output_size

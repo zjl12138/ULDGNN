@@ -5,7 +5,7 @@ from lib.networks import make_network
 import torch
 from lib.train import make_optimizer, make_recorder, make_scheduler, make_trainer
 from lib.evaluators import Evaluator
-from lib.utils import load_model, save_model
+from lib.utils import load_model, save_model,load_network
 
 def test(cfg, network):
     trainer = make_trainer(network)
@@ -13,13 +13,13 @@ def test(cfg, network):
     scheduler = make_scheduler(cfg, optimizer)
     recorder = make_recorder(cfg.recorder)
     evaluator = Evaluator()
-    begin_epoch = load_model(network, 
+    '''begin_epoch = load_model(network, 
                             optimizer,
                             scheduler,
                             recorder, 
                             cfg.model_dir, 
                             cfg.train.resume)
-
+    '''
     train_loader = make_data_loader(cfg, is_train=True)
     val_loader = make_data_loader(cfg, is_train=False)
     vis = visualizer(cfg.visualizer)
@@ -43,4 +43,5 @@ if __name__=='__main__':
         #vis.visualize(nodes, bboxes, file_list[0])
     '''
     network = make_network(cfg.network)
+    begin_epoch = load_network(network,cfg.model_dir)
     test(cfg, network)

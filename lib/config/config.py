@@ -27,13 +27,13 @@ cfg.visualizer.vis_dir =''
 cfg.train_dataset = CN()
 cfg.train_dataset.module = 'lib.datasets.light_stage.graph_dataset'
 cfg.train_dataset.path = 'lib/datasets/light_stage/graph_dataset.py'
-cfg.train_dataset.rootDir = '../../dataset/new_graph_dataset'
+cfg.train_dataset.rootDir = '../../dataset/graph_dataset'
 cfg.train_dataset.index_json = 'index_train.json'
 
 cfg.test_dataset = CN()
 cfg.test_dataset.module = 'lib.datasets.light_stage.graph_dataset'
 cfg.test_dataset.path = 'lib/datasets/light_stage/graph_dataset.py'
-cfg.test_dataset.rootDir = '../../dataset/new_graph_dataset'
+cfg.test_dataset.rootDir = '../../dataset/graph_dataset'
 cfg.test_dataset.index_json = 'index_test.json'
 
 cfg.train = CN()
@@ -41,24 +41,27 @@ cfg.train.save_ep = 10
 cfg.train.eval_ep = 10
 cfg.train.vis_ep = 1000
 cfg.train.epoch = 1000
-cfg.train.lr = 1e-3
+cfg.train.lr = 1e-4
 cfg.train.weight_decay = 1e-4
 cfg.train.optim = 'adamw'
-cfg.train.batch_size = 4
+cfg.train.batch_size = 8
 cfg.train.local_rank = 0
 cfg.train.log_interval = 50
 cfg.train.record_interval = 10
 cfg.train.shuffle=True
 cfg.train.scheduler = 'exponential'
 cfg.train.milestones = [80, 120, 200, 240]
-cfg.train.decay_epochs = 10
+cfg.train.decay_epochs = 5
 cfg.train.gamma = 0.99
 cfg.train.resume = True
+
 
 cfg.test = CN()
 cfg.test.batch_size = 1
 
 cfg.network = CN()
+cfg.network.train_loc_branch_only = False
+
 cfg.network.network_module = 'lib.networks.network'
 cfg.network.network_path = 'lib/networks/network.py'
 
@@ -75,7 +78,7 @@ cfg.network.img_embedder.outdim = 512
 cfg.network.img_embedder.name='resnet50'
 
 cfg.network.gnn_fn = CN()
-cfg.network.gnn_fn.latent_dims = [512,512]
+cfg.network.gnn_fn.latent_dims = [256,256]
 cfg.network.gnn_fn.num_heads = [4,4,4] #len(num_heads)==len(latent_dims)+1
 cfg.network.gnn_fn.out_dim = 256
 cfg.network.gnn_fn.concat = True
@@ -84,21 +87,21 @@ cfg.network.gnn_fn.batch_norm = True
 
 cfg.network.cls_fn = CN()
 cfg.network.cls_fn.latent_dims = [256,256]
-#cfg.network.cls_fn.latent_dims = [64,64]
+#cfg.network.cls_fn.latent_dims = [128,64]
 cfg.network.cls_fn.act_fn = 'LeakyReLU'
 cfg.network.cls_fn.norm_type = ''
 cfg.network.cls_fn.classes = 2
 
 cfg.network.loc_fn = CN()
 cfg.network.loc_fn.latent_dims = [256,256]
-#cfg.network.loc_fn.latent_dims = [64,64]
+#cfg.network.loc_fn.latent_dims = [128,64]
 cfg.network.loc_fn.act_fn = 'LeakyReLU'
 cfg.network.loc_fn.norm_type = ''
 cfg.network.loc_fn.classes = 4
 
 cfg.network.cls_loss = CN()
 cfg.network.cls_loss.type = 'focal_loss'
-cfg.network.cls_loss.alpha = 0.7
+cfg.network.cls_loss.alpha = 0.75
 cfg.network.cls_loss.reduction = 'mean'
 cfg.network.cls_loss.gamma = 2
 cfg.network.cls_loss.weight = 1
@@ -118,11 +121,14 @@ def make_cfg(args):
             parent_cfg = yacs.load_cfg(f)
         cfg.merge_from_other_cfg(parent_cfg)
     cfg.exp_name=args.exp_name
+    cfg.network.train_loc_branch_only = args.train_loc_branch_only
     cfg.merge_from_other_cfg(current_cfg)
     cfg.recorder.record_dir = os.path.join(cfg.outDir, cfg.exp_name, 'records')
     cfg.visualizer.vis_dir = os.path.join(cfg.outDir, cfg.exp_name, 'imgs')
     cfg.model_dir=os.path.join(cfg.outDir, cfg.exp_name,"checkpoints")
     cfg.config_dir = os.path.join(cfg.outDir, cfg.exp_name,"configs")
+
+
     print(cfg.model_dir)
     os.makedirs(cfg.recorder.record_dir,exist_ok=True)
     os.makedirs(cfg.visualizer.vis_dir, exist_ok=True)
@@ -133,6 +139,7 @@ def make_cfg(args):
 parser = argparse.ArgumentParser()
 parser.add_argument("--cfg_file", default = "configs/default.yaml",type=str)
 parser.add_argument("--exp_name",type=str)
+parser.add_argument('--train_loc_branch_only', action='store_true')
 
 args = parser.parse_args()
 make_cfg(args)

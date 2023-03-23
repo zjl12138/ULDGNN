@@ -77,6 +77,20 @@ class Network(nn.Module):
         self.gnn_fn = LayerGNN(cfg.gnn_fn)
         self.cls_fn = Classifier(cfg.cls_fn)
         self.loc_fn = Classifier(cfg.loc_fn)
+        if cfg.train_loc_branch_only:
+            print("train localizaiton branch only!")
+            self.fix_network(self.pos_embedder)
+            self.fix_network(self.type_embedder)
+            self.fix_network(self.img_embedder)
+            self.fix_network(self.gnn_fn)
+            self.fix_network(self.cls_fn)
+        else:
+            print("fix localization branch!")
+            self.fix_network(self.loc_fn)
+            
+    def fix_network(self, model):
+        for n, params in model.named_parameters():
+            params.requires_grad = False
 
     def loss(self, output, gt):
         logits, local_params = output

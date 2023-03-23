@@ -1,3 +1,4 @@
+from lib.utils.net_utils import load_network
 from lib.datasets import make_data_loader
 from lib.config import cfg
 from lib.visualizers import visualizer
@@ -10,18 +11,18 @@ from lib.utils import load_model, save_model
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
 
-def train(cfg, network):
+def train(cfg, network,begin_epoch=0):
     trainer = make_trainer(network)
     optimizer = make_optimizer(cfg, network)
     scheduler = make_scheduler(cfg, optimizer)
     recorder = make_recorder(cfg.recorder)
     evaluator = Evaluator()
-    begin_epoch = load_model(network, 
+    '''begin_epoch = load_model(network, 
                             optimizer,
                              scheduler,
                             recorder, 
                             cfg.model_dir, 
-                            cfg.train.resume)
+                            cfg.train.resume)'''
 
     train_loader = make_data_loader(cfg, is_train=True)
     print("Training artboards: ",len(train_loader))
@@ -36,9 +37,9 @@ def train(cfg, network):
         scheduler.step() 
         if (epoch+1) % cfg.train.save_ep == 0:
             save_model(network, optimizer,scheduler, recorder, cfg.model_dir,
-                       epoch, False)
-        if (epoch+1) % cfg.train.eval_ep == 0:
-            trainer.val(epoch, val_loader, evaluator, recorder, None)
+                       epoch, True)
+        #if (epoch+1) % cfg.train.eval_ep == 0:
+        #    trainer.val(epoch, val_loader, evaluator, recorder, None)
         
         if (epoch+1) % cfg.train.vis_ep == 0:
             trainer.val(epoch, val_loader, evaluator, recorder, vis)
@@ -61,4 +62,8 @@ if __name__=='__main__':
         #vis.visualize(nodes, bboxes, file_list[0])
     '''
     network = make_network(cfg.network)
+    for n, v in network.named_parameters():
+        if v.requires_grad:
+            print(n)
+    begin_epoch = load_network(network,cfg.model_dir)
     train(cfg, network)

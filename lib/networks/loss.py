@@ -75,6 +75,8 @@ def ciou_loss(box1, box2):
 def make_classifier_loss(cfg):
     if cfg.type=='focal_loss':
         return FocalLoss(cfg.alpha, cfg.gamma, cfg.reduction)
+    if cfg.type=='cross_entropy_loss':
+        return torch.nn.CrossEntropyLoss()
 
 def make_regression_loss(cfg):
     if cfg.type=='huber_loss':
