@@ -30,10 +30,21 @@ def collate_fn(batch, collate_img_path=True):
     img_list = [b[3]for b in batch]
     img_tensor = torch.cat(img_list, dim=0)
     
+
     if collate_img_path:
-        file_list = [b[6] for b in batch]
-        return  nodes, edges, types,  img_tensor, labels, bboxes, file_list   
-    return nodes, edges, types,  img_tensor, labels, bboxes
+        node_ind_list = [b[6] for b in batch]
+        #node_ind_list = [cur + torch.max(i)for prev, cur in zip(node_ind_list[:-1],node_ind_list[1:])]
+        graph_lens = np.fromiter(map(lambda l: l[-1]+1, node_ind_list), dtype=np.int64)
+        graph_inds = np.cumsum(graph_lens)
+        
+        graph_inds = np.insert(graph_inds, 0, 0)
+        graph_inds = np.delete(graph_inds, -1)
+        node_ind_list = [e + int(i) for e, i in zip(node_ind_list, graph_inds)]
+        node_indices = torch.cat(node_ind_list, dim=0)
+        file_list = [b[7] for b in batch]
+
+        return  nodes, edges, types,  img_tensor, labels, bboxes, node_indices, file_list   
+    return nodes, edges, types,  img_tensor, labels, bboxes, 
 
 def read_graph_json(path):
     content = json.load(open(path,"r"))
@@ -72,24 +83,27 @@ class Dataset(data.Dataset):
         batch = []
         img_split_last_idx = 0
         nodes = 0
+        node_ind_list= []
         for idx, graph_path in enumerate(graphs_in_this_arboard):
             #content['layer_rect'],content['edges'], content['bbox'],content['types'],content['labels']
 
             layer_rect, edges, bbox, types, labels = read_graph_json(graph_path)
             layer_rect = torch.FloatTensor(layer_rect)
             edges = torch.LongTensor(edges).transpose(1,0)
-            
+    
             bbox = torch.FloatTensor(bbox)
             types = torch.LongTensor(types)
             labels = torch.LongTensor(labels)
+            node_indices = torch.zeros(layer_rect.shape[0], dtype = torch.int64) + idx
+            node_ind_list.append(node_indices)
             #print(layer_rect.shape[0])
             nodes += layer_rect.shape[0]
-            layer_img = torch.stack(layer_assets[img_split_last_idx:img_split_last_idx+layer_rect.shape[0]])
+            layer_img = torch.stack(layer_assets[img_split_last_idx : img_split_last_idx + layer_rect.shape[0]])
             #nodes, edges, types,  img_tensor, labels, bboxes, file_list
             batch.append([layer_rect, edges, types, layer_img, labels, bbox])
             img_split_last_idx += layer_rect.shape[0]
         
-        return [*collate_fn(batch, False), artboard_img_path]
+        return [*collate_fn(batch, False), torch.cat(node_ind_list, dim = 0), artboard_img_path]
 
 if __name__=='__main__':
     cfg = CN()

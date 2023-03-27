@@ -85,7 +85,7 @@ class Trainer(object):
         label_list = []
         for batch in tqdm.tqdm(data_loader):
             batch = self.to_cuda(list(batch))
-            layer_rects, edges, types,  img_tensor, labels, bboxes, file_list = batch
+            layer_rects, edges, types,  img_tensor, labels, bboxes, node_indices, file_list = batch
             with torch.no_grad():
                 output, loss, loss_stats = self.network(batch)
                 #val_stats = evaluator.evaluate(output, batch[4])
@@ -112,12 +112,12 @@ class Trainer(object):
                 pred_fraglayers = layer_rects[labels==1]
                 pred_merging_groups = local_params[labels==1]
                 scores = scores [labels==1]
-                visualizer.visualize_pred(pred_fraglayers, pred_merging_groups,batch[6][0])
-                visualizer.visualize_nms(scores.cpu(), pred_fraglayers.cpu(),pred_merging_groups.cpu(),batch[6][0])
+                visualizer.visualize_pred(pred_fraglayers, pred_merging_groups,batch[7][0])
+                visualizer.visualize_nms(scores.cpu(), pred_fraglayers.cpu(),pred_merging_groups.cpu(),batch[7][0])
                 
                 fragmented_layers = layer_rects[labels==1]
                 merging_groups = bboxes[labels == 1 ]
-                visualizer.visualize_gt(fragmented_layers, merging_groups, batch[6][0])
+                visualizer.visualize_gt(fragmented_layers, merging_groups, batch[7][0])
                 #visualizer.visualize_nms(scores.cpu(), fragmented_layers.cpu(), merging_groups.cpu(),batch[6][0])
                 
         val_metric_stats = evaluator.evaluate((torch.cat(pred_list),None), torch.cat(label_list))
@@ -136,5 +136,6 @@ class Trainer(object):
             recorder.record('val', epoch, val_loss_stats)
             recorder.record('val', epoch, val_metric_stats)
 
+        return val_metric_stats
 def make_trainer(network):
     return Trainer(network)

@@ -276,13 +276,11 @@ class GenerateGraphsThread(ProfileLoggingThread):
             
             if w * h >= 89478485:
                 print(w," ", h, img_path)
-            if len(artboard_json['layers']) < 10 or len(artboard_json['layers'])>=4000:
+            if w >= 1500 or len(artboard_json['layers']) < 10 or len(artboard_json['layers'])>=1000:
                 pass
             else:    
-                try: 
-                    artboard_img :Image = Image.open(img_path).convert("RGBA")
-                except Warning as e:
-                    print(img_path)
+            
+                artboard_img :Image = Image.open(img_path).convert("RGBA")
                 
                 if (np.array(artboard_img)==0).all():
                     pass
@@ -292,7 +290,7 @@ class GenerateGraphsThread(ProfileLoggingThread):
                     Artboard_index+=1
                     lock.release()
                     generate_graph_sync(artboard_json, artboard_img, img_path, json_path, self.output_dir, folder_name)
-                
+               
             self.pbar.update()
             self.artboard_queue.task_done()
 
@@ -329,16 +327,16 @@ def generate_graphs(artboard_list: List[str],
     print("finished")
     
 if __name__=='__main__':
-    rootdir="/media/sda1/ljz-workspace/dataset/aliartboards_fine/"
-    outDir = "/media/sda1/ljz-workspace/dataset/graph_dataset/"
+    rootdir="/media/sda1/ljz-workspace/dataset/aliartboards_refine/"
+    outDir = "/media/sda1/ljz-workspace/dataset/graph_dataset_rerefine_fill_blank/"
     logdir = 'out'
     os.makedirs(outDir, exist_ok=True)
     os.makedirs(logdir, exist_ok=True)
     
-    indexes = 5507
+    indexes = 5503
     artboard_list = [] 
     index_train = []
-    filter_idx = [228, 1172, 2231, 4, 2495, 2837, 785, 2831, 3819, 3987, 4939]
+    filter_idx = [447,529,612,1422,2496,3267,4201]
     for idx in range(indexes):
         if idx not in filter_idx:
             artboard_list.append(os.path.join(rootdir,str(idx)))

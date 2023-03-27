@@ -10,9 +10,11 @@ def _dataset_factory(is_train):
     if is_train:
         module = cfg.train_dataset.module
         path = cfg.train_dataset.path
+        print(f"makeing training dataset from {cfg.train_dataset.rootDir}")
         return imp.load_source(module,path).Dataset(cfg.train_dataset)
    
     else:
+        print(f"makeing test dataset from {cfg.test_dataset.rootDir}")
         module = cfg.test_dataset.module
         path = cfg.test_dataset.path
         return imp.load_source(module,path).Dataset(cfg.test_dataset)

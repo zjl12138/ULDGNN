@@ -7,10 +7,13 @@ from lib.train import make_optimizer, make_recorder, make_scheduler, make_traine
 from lib.evaluators import Evaluator
 from lib.utils import load_model, save_model
 from tqdm import tqdm
+from torch_geometric.utils import to_dense_batch
 
 if __name__=='__main__':
-    cfg.train.batch_size = 4
-    cfg.test_dataset.rootDir = '../../dataset/new_graph_dataset'
+    cfg.train.batch_size = 2
+    cfg.train_dataset.rootDir = '../../dataset/graph_dataset_rerefine'
+    cfg.train_dataset.index_json = 'index.json'
+    
     dataloader = make_data_loader(cfg,is_train=True)
     vis = visualizer(cfg.visualizer)
     print(len(dataloader))
@@ -19,7 +22,10 @@ if __name__=='__main__':
     negatives = 0
     for batch in tqdm(dataloader):
         #network(batch)
-        nodes, edges, types,  img_tensor, labels, bboxes, file_list  = batch
+        nodes, edges, types,  img_tensor, labels, bboxes, node_indices, file_list  = batch
+        print(node_indices)
         positives += torch.sum(labels)
         negatives += labels.shape[0]-torch.sum(labels)
+        if nodes.shape[0]>1001:
+            print(file_list)
     print("positive: ", positives, "negative: ", negatives)

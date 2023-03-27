@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
-from lib.networks.layers import make_fully_connected_layer, GATLayer
+import torch_geometric
+from lib.networks.layers import make_fully_connected_layer, GATLayer, GPSLayer
 from lib.networks.layers import GetPosEmbedder, PosEmbedder, ImageEmbedder, TypeEmbedder
 from lib.networks.loss import make_classifier_loss, make_regression_loss
 from lib.config import cfg as CFG
+import importlib
 
 cfg = CFG.network
 
@@ -57,12 +59,64 @@ class LayerGNN(nn.Module):
             in_dim = latent_dim * num_head if cfg.concat else latent_dim
         self.add_module(f'gatlayer_{L+1}',GATLayer(in_dim, cfg.out_dim, self.num_heads[-1], False, concat=False))
         
-    def forward(self, x, edges):
+    def forward(self, batch):
+        x, edges, _ = batch
         #print(torch.max(edges))
         #print(x.shape)
         for _, gnn_layer in self.named_children():
             x = gnn_layer(x, edges)
         return x
+
+'''
+GPSLayer
+def __init__(self, dim_h, 
+                    local_gnn_type, 
+                    global_model_type, 
+                    num_heads, 
+                    act='relu',
+                    dropout=0.0, 
+                    attn_dropout=0.0, 
+                    layer_norm=False, 
+                    batch_norm=True,
+                    ):
+'''
+class GPSModel(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.latent_dims = cfg.latent_dims
+        self.num_heads = cfg.num_heads
+        self.make(cfg)
+
+    def make(self, cfg):
+        in_dim = cfg.in_dim
+        L = len(self.latent_dims)+1
+        for idx, (latent_dim, num_head) in enumerate(zip(self.latent_dims, self.num_heads)):
+            self.add_module(
+                f'GPSLayer{idx}', GPSLayer(
+                    in_dim, 
+                    cfg.local_gnn_type,
+                    cfg.global_model_type,
+                    num_head,
+                    cfg.act_fn,
+                    cfg.dropout,
+                    cfg.attn_dropout,
+                    cfg.layer_norm,
+                    cfg.batch_norm
+                )
+            )
+            in_dim = latent_dim
+        
+    def forward(self, batch):
+        x, edge_index, node_indices = batch
+        #print(torch.max(edges))
+        #print(x.shape)
+        for _, gnn_layer in self.named_children():
+            x = gnn_layer((x, edge_index, node_indices))
+        return x
+        
+def make_gnn(gnn_type):
+    norm_module = importlib.import_module("lib.networks.network")
+    return getattr(norm_module,gnn_type)
 
 class Network(nn.Module):
     def __init__(self):
@@ -74,20 +128,22 @@ class Network(nn.Module):
         cfg.gnn_fn.in_dim = cfg.pos_embedder.out_dim
         cfg.cls_fn.in_dim = cfg.gnn_fn.out_dim
         cfg.loc_fn.in_dim = cfg.gnn_fn.out_dim
-        self.gnn_fn = LayerGNN(cfg.gnn_fn)
+        self.gnn_fn = make_gnn(cfg.gnn_fn.gnn_type)(cfg.gnn_fn)
         self.cls_fn = Classifier(cfg.cls_fn)
         self.loc_fn = Classifier(cfg.loc_fn)
-        if cfg.train_loc_branch_only:
+        if cfg.train_mode==2:
             print("train localizaiton branch only!")
             self.fix_network(self.pos_embedder)
             self.fix_network(self.type_embedder)
             self.fix_network(self.img_embedder)
             self.fix_network(self.gnn_fn)
             self.fix_network(self.cls_fn)
-        else:
+        elif cfg.train_mode==1:
             print("fix localization branch!")
             self.fix_network(self.loc_fn)
-            
+        else:
+            print("train two branches together")
+        
     def fix_network(self, model):
         for n, params in model.named_parameters():
             params.requires_grad = False
@@ -123,17 +179,17 @@ class Network(nn.Module):
         return loss, loss_stats
 
     def forward(self, batch):
-        #nodes, edges, types,  img_tensor, labels, bboxes, file_list
-        layer_rect, edges, classes, images, labels, bboxes, _ = batch
+        #nodes, edges, types,  img_tensor, labels, bboxes, node_indices, file_list
+        layer_rect, edges, classes, images, labels, bboxes, node_indices, _ = batch
         pos_embedding = self.pos_embedder(layer_rect)
         type_embedding = self.type_embedder(classes)
         img_embedding = self.img_embedder(images)
 
         #batch_embedding = self.pos_embedder(layer_rect)+self.type_embedder(classes)+self.img_embedder(images)
         batch_embedding = pos_embedding + type_embedding + img_embedding
-        gnn_out = self.gnn_fn(batch_embedding, edges)
+        gnn_out = self.gnn_fn((batch_embedding, edges, node_indices))
         logits = self.cls_fn(gnn_out)
-        loc_params = self.loc_fn(gnn_out, clip_val = True)
+        loc_params = self.loc_fn(gnn_out)
         #print(logits.shape, loc_params.shape)
 
         loss, loss_stats = self.loss([logits, loc_params],[layer_rect, labels, bboxes])
