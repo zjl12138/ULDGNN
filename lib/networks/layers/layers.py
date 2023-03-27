@@ -142,7 +142,8 @@ class GPSLayer(nn.Module):
         return h
 
     def _ff_block(self, x):
-        """Feed Forward block.
+        """
+        Feed Forward block.
         """
         x = self.ff_dropout1(self.act_fn_ff(self.ff_linear1(x)))
         return self.ff_dropout2(self.ff_linear2(x))
