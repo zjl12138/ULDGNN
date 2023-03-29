@@ -1,4 +1,5 @@
 
+from typing import List
 from torch.utils import data
 import json
 import os
@@ -75,6 +76,8 @@ class Dataset(data.Dataset):
         
         artboard_idx = json_name.split(".")[0]
         graphs_in_this_arboard = glob.glob(os.path.join(self.root, artboard_idx)+"/*.json")
+        graphs_in_this_arboard.sort()
+
         layer_assets = self.img_transform(self.read_img(os.path.join(self.root, artboard_idx,assets_img)))
         layer_assets = list(torch.split(layer_assets,64,dim=1))
         

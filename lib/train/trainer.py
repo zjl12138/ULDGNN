@@ -10,6 +10,8 @@ from lib.visualizers.visualizer import visualizer
 import torch.nn.functional as F
 from lib.utils import nms_merge
 import matplotlib.pyplot as plt
+import os
+from lib.utils import correct_dataset
 
 cfg = CFG.train
 
@@ -167,48 +169,36 @@ class Trainer(object):
         for batch in tqdm.tqdm(data_loader):
             batch = self.to_cuda(list(batch))
             layer_rects, edges, types,  img_tensor, labels, bboxes, node_indices, file_list = batch
+            #print(node_indices)
+            rootDir, artboard_idx = os.path.split(file_list[0])
+            artboard_idx = artboard_idx.split(".")[0]
+            print("checking artboard:", artboard_idx,"...")
             with torch.no_grad():
+
                 output, loss, loss_stats = self.network(batch)
-                #val_stats = evaluator.evaluate(output, batch[4])
-                loss_stats = self.reduce_loss_stats(loss_stats)
-                
-                for k, v in loss_stats.items():
-                    val_loss_stats.setdefault(k, 0)
-                    val_loss_stats[k] += v
-                
-                '''for k, v in val_stats.items():
-                    val_metric_stats.setdefault(k, 0)
-                    val_metric_stats[k] += v
-                '''
                 logits, local_params = output
                 scores, pred = torch.max(F.softmax(logits,dim=1), 1)
-            
-                #print(layer_rects.shape, pred.shape, labels)
-                pred_fraglayers = layer_rects[pred==1]
-                pred_merging_groups = local_params[pred==1]
-                scores = scores [pred==1]
-
-                pred_bboxes = pred_merging_groups + pred_fraglayers
-                bbox_results = nms_merge(pred_bboxes, scores, threshold=0.45)
                 
-                if val_nms:
-                    #prev_pred = pred
-                    pred = evaluator.correct_pred_with_nms(pred, bbox_results, layer_rects, types, threshold=0.45) 
-                    #print(f"correct {torch.sum(pred!=prev_pred)}wrong preditions")
-
-                pred_list.append(pred)
-                label_list.append(labels) 
-
-                if visualizer is not None:
-                    visualizer.visualize_pred(pred_fraglayers, pred_merging_groups,batch[7][0])
-                    visualizer.visualize_nms(bbox_results.cpu(),batch[7][0])
+                correct_mask = torch.logical_and( pred == 1, pred != labels)
+                correct_idx = torch.where(correct_mask)[0]
+                print(correct_idx)
+                fragmented_layers = layer_rects[labels==1]
+                merging_groups = bboxes[labels == 1 ]
+                visualizer.visualize_gt(fragmented_layers, merging_groups, batch[7][0])
                     
-                    fragmented_layers = layer_rects[labels==1]
-                    merging_groups = bboxes[labels == 1 ]
-                    visualizer.visualize_gt(fragmented_layers, merging_groups, batch[7][0])
-                    #visualizer.visualize_nms(scores.cpu(), fragmented_layers.cpu(), merging_groups.cpu(),batch[6][0])
+                if correct_idx.shape[0] != 0:
+                    correct_layer_rects = layer_rects[correct_idx,:]
+                    visualizer.visualize_with_labels(correct_layer_rects, correct_idx, batch[7][0])
+                        
+                    img = plt.imread(file_list[0])
+                    plt.imshow(img)
+                    plt.show()
+                    correct_idx_confirm = input("correct ids: ")
+                    correct_idx_list = correct_idx_confirm.strip().split(" ")
                     
-        
+                    if correct_idx_list[0] != '' and len(correct_idx_list):
+                        correct_dataset(rootDir, artboard_idx, node_indices, correct_idx_list)
+
         return val_metric_stats
 def make_trainer(network):
     return Trainer(network)
