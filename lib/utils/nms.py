@@ -24,6 +24,23 @@ def IoU(single_box, box_list):
  
     return iou'''
     
+def contains(box_large, box_small):
+    b1_xy = box_large[:2]
+    b1_wh = box_large[2:4]
+    #b1_wh_half = b1_wh / 2
+    b1_mins = b1_xy 
+    b1_maxs = b1_xy + b1_wh
+
+    b2_xy = box_small[..., :2]
+    b2_wh = box_small[..., 2:4]
+    #b2_wh_half = b2_wh / 2
+    b2_mins = b2_xy
+    b2_maxs = b2_xy + b2_wh
+
+    check_min = torch.logical_and( (b2_mins[:,0]-b1_mins[0])>=0, (b2_mins[:,1]-b1_mins[1])>=0 )
+    check_max = torch.logical_and( (b2_maxs[:,0]-b1_maxs[0])<=0, (b2_maxs[:,1]-b1_maxs[1])<=0 )
+    return torch.logical_and(check_min, check_max)
+
 def IoU(box1, box2):
     b1_xy = box1[..., :2]
     b1_wh = box1[..., 2:4]

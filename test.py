@@ -24,7 +24,7 @@ def test(cfg, network):
     val_loader = make_data_loader(cfg, is_train=False)
     vis = visualizer(cfg.visualizer)
     
-    trainer.val(begin_epoch, val_loader, evaluator, recorder, vis)
+    trainer.val(begin_epoch, val_loader, evaluator, recorder, vis if cfg.test.vis_bbox else None, val_nms=cfg.test.val_nms)
 
 if __name__=='__main__':
     '''dataloader = make_data_loader(cfg,is_train=False)

@@ -8,6 +8,8 @@ import tqdm
 from lib.evaluators.evaluator import Evaluator
 from lib.visualizers.visualizer import visualizer
 import torch.nn.functional as F
+from lib.utils import nms_merge
+import matplotlib.pyplot as plt
 
 cfg = CFG.train
 
@@ -52,7 +54,10 @@ class Trainer(object):
             loss_stats = self.reduce_loss_stats(loss_stats)
             recorder.update_loss_stats(loss_stats)
 
-            metric_stats = evaluator.evaluate(output, batch[4])
+            logits, _ = output
+            _, pred = torch.max(F.softmax(logits,dim=1), 1)
+
+            metric_stats = evaluator.evaluate(pred, batch[4])
             recorder.update_loss_stats(metric_stats)
 
             batch_time = time.time() - end
@@ -75,7 +80,7 @@ class Trainer(object):
                 # record loss_stats and image_dict
                 recorder.record('train')
     
-    def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None):
+    def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False):
         self.network.eval()
         torch.cuda.empty_cache()
         val_loss_stats = {}
@@ -83,44 +88,54 @@ class Trainer(object):
         val_metric_stats = {}
         pred_list = []
         label_list = []
+
+        check_records = {}
+
         for batch in tqdm.tqdm(data_loader):
             batch = self.to_cuda(list(batch))
             layer_rects, edges, types,  img_tensor, labels, bboxes, node_indices, file_list = batch
             with torch.no_grad():
                 output, loss, loss_stats = self.network(batch)
                 #val_stats = evaluator.evaluate(output, batch[4])
-                logits, local_params = output
-                
-                pred_list.append(logits)
-                label_list.append(labels)
-                
                 loss_stats = self.reduce_loss_stats(loss_stats)
                 
-            for k, v in loss_stats.items():
-                val_loss_stats.setdefault(k, 0)
-                val_loss_stats[k] += v
-            
-            '''for k, v in val_stats.items():
-                val_metric_stats.setdefault(k, 0)
-                val_metric_stats[k] += v
-            '''
-            if visualizer is not None:
+                for k, v in loss_stats.items():
+                    val_loss_stats.setdefault(k, 0)
+                    val_loss_stats[k] += v
+                
+                '''for k, v in val_stats.items():
+                    val_metric_stats.setdefault(k, 0)
+                    val_metric_stats[k] += v
+                '''
                 logits, local_params = output
                 scores, pred = torch.max(F.softmax(logits,dim=1), 1)
             
                 #print(layer_rects.shape, pred.shape, labels)
-                pred_fraglayers = layer_rects[labels==1]
-                pred_merging_groups = local_params[labels==1]
-                scores = scores [labels==1]
-                visualizer.visualize_pred(pred_fraglayers, pred_merging_groups,batch[7][0])
-                visualizer.visualize_nms(scores.cpu(), pred_fraglayers.cpu(),pred_merging_groups.cpu(),batch[7][0])
+                pred_fraglayers = layer_rects[pred==1]
+                pred_merging_groups = local_params[pred==1]
+                scores = scores [pred==1]
+
+                pred_bboxes = pred_merging_groups + pred_fraglayers
+                bbox_results = nms_merge(pred_bboxes, scores, threshold=0.45)
                 
-                fragmented_layers = layer_rects[labels==1]
-                merging_groups = bboxes[labels == 1 ]
-                visualizer.visualize_gt(fragmented_layers, merging_groups, batch[7][0])
-                #visualizer.visualize_nms(scores.cpu(), fragmented_layers.cpu(), merging_groups.cpu(),batch[6][0])
-                
-        val_metric_stats = evaluator.evaluate((torch.cat(pred_list),None), torch.cat(label_list))
+                if val_nms:
+                    #prev_pred = pred
+                    pred = evaluator.correct_pred_with_nms(pred, bbox_results, layer_rects, types, threshold=0.45) 
+                    #print(f"correct {torch.sum(pred!=prev_pred)}wrong preditions")
+
+                pred_list.append(pred)
+                label_list.append(labels) 
+
+                if visualizer is not None:
+                    visualizer.visualize_pred(pred_fraglayers, pred_merging_groups,batch[7][0])
+                    visualizer.visualize_nms(bbox_results.cpu(),batch[7][0])
+                    
+                    fragmented_layers = layer_rects[labels==1]
+                    merging_groups = bboxes[labels == 1 ]
+                    visualizer.visualize_gt(fragmented_layers, merging_groups, batch[7][0])
+                    #visualizer.visualize_nms(scores.cpu(), fragmented_layers.cpu(), merging_groups.cpu(),batch[6][0])
+                    
+        val_metric_stats = evaluator.evaluate(torch.cat(pred_list), torch.cat(label_list))
 
         loss_state = []
         metric_state = []
@@ -136,6 +151,64 @@ class Trainer(object):
             recorder.record('val', epoch, val_loss_stats)
             recorder.record('val', epoch, val_metric_stats)
 
+        return val_metric_stats
+
+    def check_with_human_in_loop(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False):
+        self.network.eval()
+        torch.cuda.empty_cache()
+        val_loss_stats = {}
+        data_size = len(data_loader)
+        val_metric_stats = {}
+        pred_list = []
+        label_list = []
+
+        check_records = {}
+
+        for batch in tqdm.tqdm(data_loader):
+            batch = self.to_cuda(list(batch))
+            layer_rects, edges, types,  img_tensor, labels, bboxes, node_indices, file_list = batch
+            with torch.no_grad():
+                output, loss, loss_stats = self.network(batch)
+                #val_stats = evaluator.evaluate(output, batch[4])
+                loss_stats = self.reduce_loss_stats(loss_stats)
+                
+                for k, v in loss_stats.items():
+                    val_loss_stats.setdefault(k, 0)
+                    val_loss_stats[k] += v
+                
+                '''for k, v in val_stats.items():
+                    val_metric_stats.setdefault(k, 0)
+                    val_metric_stats[k] += v
+                '''
+                logits, local_params = output
+                scores, pred = torch.max(F.softmax(logits,dim=1), 1)
+            
+                #print(layer_rects.shape, pred.shape, labels)
+                pred_fraglayers = layer_rects[pred==1]
+                pred_merging_groups = local_params[pred==1]
+                scores = scores [pred==1]
+
+                pred_bboxes = pred_merging_groups + pred_fraglayers
+                bbox_results = nms_merge(pred_bboxes, scores, threshold=0.45)
+                
+                if val_nms:
+                    #prev_pred = pred
+                    pred = evaluator.correct_pred_with_nms(pred, bbox_results, layer_rects, types, threshold=0.45) 
+                    #print(f"correct {torch.sum(pred!=prev_pred)}wrong preditions")
+
+                pred_list.append(pred)
+                label_list.append(labels) 
+
+                if visualizer is not None:
+                    visualizer.visualize_pred(pred_fraglayers, pred_merging_groups,batch[7][0])
+                    visualizer.visualize_nms(bbox_results.cpu(),batch[7][0])
+                    
+                    fragmented_layers = layer_rects[labels==1]
+                    merging_groups = bboxes[labels == 1 ]
+                    visualizer.visualize_gt(fragmented_layers, merging_groups, batch[7][0])
+                    #visualizer.visualize_nms(scores.cpu(), fragmented_layers.cpu(), merging_groups.cpu(),batch[6][0])
+                    
+        
         return val_metric_stats
 def make_trainer(network):
     return Trainer(network)

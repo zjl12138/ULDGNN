@@ -1,12 +1,5 @@
 train:
-    lr: 5e-5
-    local_rank: 1
-    save_best_acc: False
-  
-test:
-    vis_bbox: False
-    val_nms: True
-
+    lr: 1e-4
 network:
     pos_embedder:
         multires: 9

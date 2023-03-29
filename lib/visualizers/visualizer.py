@@ -38,12 +38,9 @@ class visualizer:
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-layers_gt.png'),img_1)
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-group_gt.png'),img_2)
 
-    def visualize_nms(self, scores, layer_rects:torch.Tensor, bboxes:torch.Tensor, img_path, threshold=0.3):
+    def visualize_nms(self,  bbox_results:torch.Tensor, img_path):
         img_1 = cv2.imread(img_path)
-        bboxes = bboxes + layer_rects
-        #bboxes[:,2:4] = bboxes[:,2:4] + bboxes[:,0:2]  # x,y,w h -> x1,y1,x2,y2
-        bbox_results = nms_merge(bboxes, scores, threshold)
-        
+    
         file_path, artboard_name = os.path.split(img_path)
         artboard_name = artboard_name.split(".")[0]
         H, W, _ = img_1.shape

@@ -17,13 +17,14 @@ def train(cfg, network,begin_epoch=0):
     scheduler = make_scheduler(cfg, optimizer)
     recorder = make_recorder(cfg.recorder)
     evaluator = Evaluator()
-    begin_epoch = load_model(network, 
+    
+    '''begin_epoch = load_model(network, 
                             optimizer,
                              scheduler,
                             recorder, 
                             cfg.model_dir, 
                             cfg.train.resume)
-
+    '''
     train_loader = make_data_loader(cfg, is_train=True)
     print("Training artboards: ",len(train_loader))
     val_loader = make_data_loader(cfg, is_train=False)
@@ -31,7 +32,7 @@ def train(cfg, network,begin_epoch=0):
     vis = visualizer(cfg.visualizer)
     best_epoch = -1
     best_acc = -1
-    if begin_epoch > 0:
+    if begin_epoch > 0 and cfg.train.save_best_acc: 
         best_epoch = begin_epoch
         val_metric_stats = trainer.val(begin_epoch, val_loader, evaluator, recorder, None)
         best_acc = val_metric_stats['accuracy']
@@ -46,12 +47,17 @@ def train(cfg, network,begin_epoch=0):
         #    save_model(network, optimizer,scheduler, recorder, cfg.model_dir,
         #               epoch, True)
         if (epoch+1) % cfg.train.eval_ep == 0:
-            val_metric_stats = trainer.val(epoch, val_loader, evaluator, recorder, None)
-            if val_metric_stats['accuracy'] > best_acc:
-                print("model with best accuracy saving...")
-                best_epoch = epoch
-                best_acc = val_metric_stats['accuracy']
-                save_model(network, optimizer,scheduler, recorder, cfg.model_dir, best_epoch, True)
+            if cfg.train.save_best_acc:
+                val_metric_stats = trainer.val(epoch, val_loader, evaluator, recorder, None, False)
+             
+                if val_metric_stats['accuracy'] > best_acc:
+                    print("model with best accuracy saving...")
+                    best_epoch = epoch
+                    best_acc = val_metric_stats['accuracy']
+                    save_model(network, optimizer,scheduler, recorder, cfg.model_dir, best_epoch, True)
+            else:    
+                    print("saving model...")
+                    save_model(network, optimizer,scheduler, recorder, cfg.model_dir, best_epoch, True)
 
         #if (epoch+1) % cfg.train.vis_ep == 0:
         #    trainer.val(epoch, val_loader, evaluator, recorder, vis)
@@ -77,5 +83,5 @@ if __name__=='__main__':
     for n, v in network.named_parameters():
         if v.requires_grad:
             print(n)
-    #begin_epoch = load_network(network,cfg.model_dir)
-    train(cfg, network)
+    begin_epoch = load_network(network,cfg.model_dir)
+    train(cfg, network,begin_epoch)

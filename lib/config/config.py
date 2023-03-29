@@ -38,15 +38,16 @@ cfg.test_dataset.rootDir = '../../dataset/graph_dataset_rerefine'
 cfg.test_dataset.index_json = 'index_test.json'
 
 cfg.train = CN()
+cfg.train.save_best_acc=True
 cfg.train.save_ep = 10
 cfg.train.eval_ep = 10
 cfg.train.vis_ep = 1000
 cfg.train.epoch = 1000
-cfg.train.lr = 1e-4
+cfg.train.lr = 7e-5
 cfg.train.weight_decay = 1e-5
 cfg.train.optim = 'adamw'
 cfg.train.batch_size = 8
-cfg.train.local_rank = 0
+cfg.train.local_rank = 3
 cfg.train.log_interval = 50
 cfg.train.record_interval = 10
 cfg.train.shuffle=True
@@ -56,9 +57,10 @@ cfg.train.decay_epochs = 5
 cfg.train.gamma = 0.99
 cfg.train.resume = True
 
-
 cfg.test = CN()
 cfg.test.batch_size = 1
+cfg.test.vis_bbox = True
+cfg.test.val_nms = False
 
 cfg.network = CN()
 cfg.network.train_mode = 0  # mode 0: train two branches together, 1: only train cls branch, 2:only train loc branch
@@ -125,6 +127,7 @@ def make_cfg(args):
     cfg.exp_name=args.exp_name
     cfg.network.train_mode = args.train_mode
     cfg.merge_from_other_cfg(current_cfg)
+   
     cfg.recorder.record_dir = os.path.join(cfg.outDir, cfg.exp_name, 'records')
     cfg.visualizer.vis_dir = os.path.join(cfg.outDir, cfg.exp_name, 'imgs')
     cfg.model_dir=os.path.join(cfg.outDir, cfg.exp_name,"checkpoints")

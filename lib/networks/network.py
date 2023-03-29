@@ -21,11 +21,12 @@ class Classifier(nn.Module):
         in_dim = self.in_dim
         
         for idx, latent_dim in enumerate(self.latent_dims):
-            self.add_module(f'fc_{idx}',make_fully_connected_layer(in_dim,
+            self.add_module(
+                            f'fc_{idx}',make_fully_connected_layer(in_dim,
                                                              latent_dim, 
                                                              cfg.act_fn, 
                                                              cfg.norm_type)
-                                  )
+                           )
             in_dim = latent_dim
 
         self.add_module(f'fc_{len(self.latent_dims)+1}',make_fully_connected_layer(self.latent_dims[-1],
@@ -120,8 +121,7 @@ def make_gnn(gnn_type):
 
 class Network(nn.Module):
     def __init__(self):
-        super(Network, self).__init__()
-       
+        super(Network, self).__init__()   
         self.pos_embedder = PosEmbedder(cfg.pos_embedder)
         self.type_embedder = TypeEmbedder(cfg.type_embedder)
         self.img_embedder = ImageEmbedder(cfg.img_embedder)
