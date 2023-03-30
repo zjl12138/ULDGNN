@@ -7,9 +7,25 @@ import torch
 from lib.train import make_optimizer, make_recorder, make_scheduler, make_trainer
 from lib.evaluators import Evaluator
 from lib.utils import load_model, save_model
+import torch.distributed as dist
+import os
 
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
+
+def synchronize():
+    """
+    Helper function to synchronize (barrier) among all processes when
+    using distributed training
+    """
+    if not dist.is_available():
+        return
+    if not dist.is_initialized():
+        return
+    world_size = dist.get_world_size()
+    if world_size == 1:
+        return
+    dist.barrier()
 
 def train(cfg, network, begin_epoch=0):
     trainer = make_trainer(network)
@@ -25,7 +41,7 @@ def train(cfg, network, begin_epoch=0):
                             cfg.model_dir, 
                             cfg.train.resume)
     '''
-    train_loader = make_data_loader(cfg, is_train=True)
+    train_loader = make_data_loader(cfg, is_train=True, is_distributed=cfg.train.is_distributed)
     print("Training artboards: ", len(train_loader))
     val_loader = make_data_loader(cfg, is_train=False)
     print("validating artboards: ", len(val_loader))
@@ -41,12 +57,14 @@ def train(cfg, network, begin_epoch=0):
         #trainer.val(epoch, val_loader, evaluator, recorder, None)
 
         recorder.epoch = epoch
+        if cfg.train.is_distributed:
+            train_loader.batch_sampler.sampler.set_epoch(epoch)
         trainer.train(epoch, train_loader, optimizer, recorder, evaluator)
         scheduler.step() 
         #if (epoch+1) % cfg.train.save_ep == 0:
         #    save_model(network, optimizer,scheduler, recorder, cfg.model_dir,
         #               epoch, True)
-        if (epoch+1) % cfg.train.eval_ep == 0:
+        if (epoch+1) % cfg.train.eval_ep == 0 and cfg.local_rank == 0:
             if cfg.train.save_best_acc:
                 val_metric_stats = trainer.val(epoch, val_loader, evaluator, recorder, None, False)
              
@@ -79,7 +97,17 @@ if __name__=='__main__':
         #network(batch)
         #vis.visualize(nodes, bboxes, file_list[0])
     '''
+    if cfg.train.is_distributed:
+        print("distributed training!")
+        cfg.train.local_rank = int(os.environ['RANK']) % torch.cuda.device_count()
+        torch.cuda.set_device(cfg.train.local_rank)
+        torch.distributed.init_process_group(backend="nccl",
+                                             init_method="env://")
+        synchronize()
     network = make_network(cfg.network)
+    if cfg.train.is_distributed:
+        network = torch.nn.SyncBatchNorm.convert_sync_batchnorm(network)
+            
     for n, v in network.named_parameters():
         if v.requires_grad:
             print(n)

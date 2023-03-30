@@ -17,10 +17,19 @@ cfg = CFG.train
 
 class Trainer(object):
     def __init__(self, network):
+        
         self.device = torch.device(f'cuda:{cfg.local_rank}')
         network = network.to(self.device)
-        self.network = network
         self.local_rank = cfg.local_rank
+        '''if cfg.is_distributed:
+            print("distributed network!")
+            network = torch.nn.parallel.DistributedDataParallel(
+                network,
+                device_ids=[cfg.local_rank],
+                output_device=cfg.local_rank
+            )
+        '''
+        self.network = network
 
     def to_cuda(self, batch):
         for k, _ in enumerate(batch):

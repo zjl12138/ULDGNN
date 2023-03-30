@@ -154,7 +154,7 @@ class Network(nn.Module):
     def process_output_data(self, output, layer_rects):
         logits, local_params = output
         if self.bbox_regression_type == 'center_regress':
-            local_params[:, 0:2] = local_params[:, 0:2] + layer_rects[:, 0:2]
+            local_params[:, 0:2] = layer_rects[:, 0:2] + layer_rects[:, 2:4] * 0.5 + local_params[:, 0:2] - local_params[:, 2:4] * 0.5
         elif self.bbox_regression_type == 'offset_based_on_layer':
             local_params = local_params + layer_rects
         else:

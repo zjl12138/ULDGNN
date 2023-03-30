@@ -2,6 +2,7 @@ train:
     lr: 1e-4
     local_rank: 0
     save_best_acc: False
+    is_distributed: True
   
 test:
     vis_bbox: True
@@ -9,6 +10,7 @@ test:
 
 network:
     bbox_regression_type: 'center_regress'
+
     pos_embedder:
         multires: 9
         out_dim: 128
@@ -20,6 +22,9 @@ network:
     img_embedder:
         outdim: 128
         name: 'resnet50'
+
+    reg_loss:
+        weight: 10
 
     gnn_fn:
       gnn_type: 'GPSModel'
