@@ -12,16 +12,16 @@ class visualizer:
         return (int(x[0]*W), int(x[1]*H), int(x[2]*W), int(x[3]*H))
 
     def visualize_with_labels(self, layer_rects, layer_idxs, img_path):
-        img_1 = cv2.imread(img_path)
         file_path, artboard_name = os.path.split(img_path)
         artboard_name = artboard_name.split(".")[0]
+        img_1 = cv2.imread(os.path.join(self.vis_dir, f'{artboard_name}-layers.png'))
         H, W, _ = img_1.shape
         for layer_rect, layer_id in zip(layer_rects, layer_idxs):
-            cv2.rectangle(img_1, self.scale_to_img(layer_rect,H,W), (255,0,0),1)
+            cv2.rectangle(img_1, self.scale_to_img(layer_rect,H,W), (0,0,255),1)
             x, y, w, h = self.scale_to_img(layer_rect,H,W)
-            cv2.putText(img_1, str(layer_id.item()), (x, y), cv2.FONT_ITALIC, 0.23, [0, 0, 255],1)
+            cv2.putText(img_1, str(layer_id.item()), (x, y), cv2.FONT_HERSHEY_SCRIPT_SIMPLEX, 0.25, [0, 0, 255],1)
 
-        cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-correct.png'),img_1)
+        cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-correct.png'), img_1)
 
     def visualize_pred(self, layer_rects, local_params,  img_path):
         img_1 = cv2.imread(img_path)

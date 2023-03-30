@@ -188,16 +188,18 @@ class Trainer(object):
                     
                 if correct_idx.shape[0] != 0:
                     correct_layer_rects = layer_rects[correct_idx,:]
-                    visualizer.visualize_with_labels(correct_layer_rects, correct_idx, batch[7][0])
-                        
-                    img = plt.imread(file_list[0])
-                    plt.imshow(img)
-                    plt.show()
-                    correct_idx_confirm = input("correct ids: ")
-                    correct_idx_list = correct_idx_confirm.strip().split(" ")
-                    
-                    if correct_idx_list[0] != '' and len(correct_idx_list):
-                        correct_dataset(rootDir, artboard_idx, node_indices, correct_idx_list)
+                    visualizer.visualize_pred(correct_layer_rects, bboxes[correct_idx,:], batch[7][0])
+                    correct_idx_list = []
+                    for i in range(correct_idx.shape[0]):
+                        visualizer.visualize_with_labels(correct_layer_rects[i:i+1,:], correct_idx[i:i+1], batch[7][0])
+                        correct_idx_confirm = input(f"accept the correct id {correct_idx[i]} or not [y/n]: ")
+                        if correct_idx_confirm=='y':
+                            correct_idx_list.append(correct_idx[i].item())
+                    print("correction ids: ", correct_idx_list)   
+                    correct_idx_confirm = input("accept the correct id_list? [y/n]")
+                    if correct_idx_confirm == 'y':
+                        if  len(correct_idx_list) and correct_idx_list[0] != '':
+                            correct_dataset(rootDir, artboard_idx, node_indices, correct_idx_list)
 
         return val_metric_stats
 def make_trainer(network):
