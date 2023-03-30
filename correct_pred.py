@@ -27,21 +27,7 @@ def test(cfg, network):
     trainer.check_with_human_in_loop(begin_epoch, val_loader, evaluator, recorder, vis, val_nms=cfg.test.val_nms)
 
 if __name__=='__main__':
-    '''dataloader = make_data_loader(cfg,is_train=False)
-    vis = visualizer(cfg.visualizer)
-    network = make_network(cfg.network)
-    print(network)
-    optim = make_optimizer(cfg, network)
-    sched = make_scheduler(cfg, optim)
-    trainer = make_trainer(network)
-    recorder = make_recorder(cfg.recorder)
-    evaluator = Evaluator()
-    
-    
-    trainer.train(0, dataloader, optim, recorder, evaluator )
-        #network(batch)
-        #vis.visualize(nodes, bboxes, file_list[0])
-    '''
+   
     network = make_network(cfg.network)
     begin_epoch = load_network(network,cfg.model_dir)
     print("begin epoch: ", begin_epoch)
