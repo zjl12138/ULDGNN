@@ -106,7 +106,7 @@ class GPSLayer(nn.Module):
         self.ff_dropout2 = nn.Dropout(dropout)
 
     def forward(self, batch):      
-        x, edge_index, node_indices = batch     #node_indices is used to denote which graph that each node belongs to        
+        x, edge_index, node_indices = batch     #node_indices is used to denote the idx of the graph that each node belongs to        
         h = x
         h_in1 = h
         h_out_list = []

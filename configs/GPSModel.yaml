@@ -1,13 +1,14 @@
 train:
-    lr: 5e-5
-    local_rank: 1
+    lr: 1e-4
+    local_rank: 0
     save_best_acc: False
   
 test:
-    vis_bbox: False
-    val_nms: True
+    vis_bbox: True
+    val_nms: False
 
 network:
+    bbox_regression_type: 'center_regress'
     pos_embedder:
         multires: 9
         out_dim: 128

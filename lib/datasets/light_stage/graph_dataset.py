@@ -47,7 +47,10 @@ def collate_fn(batch, collate_img_path=True):
         return  nodes, edges, types,  img_tensor, labels, bboxes, node_indices, file_list   
     return nodes, edges, types,  img_tensor, labels, bboxes, 
 
-def read_graph_json(path):
+def read_graph_json(path): 
+    '''
+    output: bbox stores (delta_x, delta_y, delta_w, delta_h), bbox + layer_rect is the real bbox size
+    '''
     content = json.load(open(path,"r"))
     return content['layer_rect'],content['edges'], content['bbox'],content['types'],content['labels']
 

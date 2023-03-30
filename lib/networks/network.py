@@ -6,6 +6,7 @@ from lib.networks.layers import GetPosEmbedder, PosEmbedder, ImageEmbedder, Type
 from lib.networks.loss import make_classifier_loss, make_regression_loss
 from lib.config import cfg as CFG
 import importlib
+import torch.nn.functional as F
 
 cfg = CFG.network
 
@@ -128,6 +129,8 @@ class Network(nn.Module):
         cfg.gnn_fn.in_dim = cfg.pos_embedder.out_dim
         cfg.cls_fn.in_dim = cfg.gnn_fn.out_dim
         cfg.loc_fn.in_dim = cfg.gnn_fn.out_dim
+        self.bbox_regression_type = cfg.bbox_regression_type
+        print("the bbox regression type: ", self.bbox_regression_type)
         self.gnn_fn = make_gnn(cfg.gnn_fn.gnn_type)(cfg.gnn_fn)
         self.cls_fn = Classifier(cfg.cls_fn)
         self.loc_fn = Classifier(cfg.loc_fn)
@@ -148,20 +151,33 @@ class Network(nn.Module):
         for n, params in model.named_parameters():
             params.requires_grad = False
 
-    def loss(self, output, gt):
+    def process_output_data(self, output, layer_rects):
         logits, local_params = output
+        if self.bbox_regression_type == 'center_regress':
+            local_params[:, 0:2] = local_params[:, 0:2] + layer_rects[:, 0:2]
+        elif self.bbox_regression_type == 'offset_based_on_layer':
+            local_params = local_params + layer_rects
+        else:
+            raise(f"No such bbox regression type: {self.bbox_regression_type}")
+        return (logits, local_params)
+
+    def loss(self, output, gt):
+        
         layer_rects, labels, bboxes = gt
+        logits, local_params = self.process_output_data(output, layer_rects)
+
         cls_loss_fn = make_classifier_loss(cfg.cls_loss)
         reg_loss_fn = make_regression_loss(cfg.reg_loss)
         loss_stats = {}
         cls_loss = cls_loss_fn(logits, labels)
         assert(torch.sum(bboxes[labels==0]).item()<1e-8)
         
-        local_params = local_params[labels==1]
-        bboxes = bboxes[labels==1]
-        layer_rects =  layer_rects[labels==1]
-        
-        local_params = local_params + layer_rects
+        scores, pred = torch.max(F.softmax(logits, dim = 1), 1)
+        training_mask = torch.logical_or(labels == 1, pred == 1)
+        local_params = local_params[training_mask]
+        bboxes = bboxes[training_mask]
+        layer_rects =  layer_rects[training_mask]
+        #local_params = local_params + layer_rects
         bboxes = bboxes + layer_rects
         
         #print(local_params, bboxes)
@@ -191,9 +207,8 @@ class Network(nn.Module):
         logits = self.cls_fn(gnn_out)
         loc_params = self.loc_fn(gnn_out)
         #print(logits.shape, loc_params.shape)
-
         loss, loss_stats = self.loss([logits, loc_params],[layer_rect, labels, bboxes])
-        return (logits, loc_params), loss, loss_stats
+        return self.process_output_data((logits, loc_params), layer_rect), loss, loss_stats
 
 if __name__=='__main__':
     network = Network()

@@ -11,7 +11,7 @@ from lib.utils import load_model, save_model
 torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
 
-def train(cfg, network,begin_epoch=0):
+def train(cfg, network, begin_epoch=0):
     trainer = make_trainer(network)
     optimizer = make_optimizer(cfg, network)
     scheduler = make_scheduler(cfg, optimizer)
@@ -26,9 +26,9 @@ def train(cfg, network,begin_epoch=0):
                             cfg.train.resume)
     '''
     train_loader = make_data_loader(cfg, is_train=True)
-    print("Training artboards: ",len(train_loader))
+    print("Training artboards: ", len(train_loader))
     val_loader = make_data_loader(cfg, is_train=False)
-    print("validating artboards: ",len(val_loader))
+    print("validating artboards: ", len(val_loader))
     vis = visualizer(cfg.visualizer)
     best_epoch = -1
     best_acc = -1
@@ -41,7 +41,7 @@ def train(cfg, network,begin_epoch=0):
         #trainer.val(epoch, val_loader, evaluator, recorder, None)
 
         recorder.epoch = epoch
-        trainer.train(epoch, train_loader,optimizer,recorder,evaluator)
+        trainer.train(epoch, train_loader, optimizer, recorder, evaluator)
         scheduler.step() 
         #if (epoch+1) % cfg.train.save_ep == 0:
         #    save_model(network, optimizer,scheduler, recorder, cfg.model_dir,
@@ -54,10 +54,10 @@ def train(cfg, network,begin_epoch=0):
                     print("model with best accuracy saving...")
                     best_epoch = epoch
                     best_acc = val_metric_stats['accuracy']
-                    save_model(network, optimizer,scheduler, recorder, cfg.model_dir, best_epoch, True)
+                    save_model(network, optimizer, scheduler, recorder, cfg.model_dir, best_epoch, True)
             else:    
                     print("saving model...")
-                    save_model(network, optimizer,scheduler, recorder, cfg.model_dir, best_epoch, True)
+                    save_model(network, optimizer, scheduler, recorder, cfg.model_dir, best_epoch, True)
 
         #if (epoch+1) % cfg.train.vis_ep == 0:
         #    trainer.val(epoch, val_loader, evaluator, recorder, vis)
@@ -83,5 +83,5 @@ if __name__=='__main__':
     for n, v in network.named_parameters():
         if v.requires_grad:
             print(n)
-    begin_epoch = load_network(network,cfg.model_dir)
-    train(cfg, network,begin_epoch)
+    begin_epoch = load_network(network, cfg.model_dir)
+    train(cfg, network, begin_epoch)
