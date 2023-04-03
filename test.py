@@ -43,6 +43,6 @@ if __name__=='__main__':
         #vis.visualize(nodes, bboxes, file_list[0])
     '''
     network = make_network(cfg.network)
-    begin_epoch = load_network(network,cfg.model_dir)
+    begin_epoch = load_network(network, cfg.model_dir)
     print("begin epoch: ", begin_epoch)
     test(cfg, network)

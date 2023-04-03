@@ -21,14 +21,13 @@ class Trainer(object):
         self.device = torch.device(f'cuda:{cfg.local_rank}')
         network = network.to(self.device)
         self.local_rank = cfg.local_rank
-        '''if cfg.is_distributed:
+        if cfg.is_distributed:
             print("distributed network!")
             network = torch.nn.parallel.DistributedDataParallel(
                 network,
                 device_ids=[cfg.local_rank],
                 output_device=cfg.local_rank
             )
-        '''
         self.network = network
 
     def to_cuda(self, batch):
@@ -53,7 +52,7 @@ class Trainer(object):
             iteration += 1
             batch = self.to_cuda(list(batch))
 
-            output, loss, loss_stats = self.network(batch)
+            output, loss, loss_stats = self.network(batch)  #output: (logits, centers, bboxes)
 
             optimizer.zero_grad()
             loss = loss.mean()
@@ -65,7 +64,8 @@ class Trainer(object):
             loss_stats = self.reduce_loss_stats(loss_stats)
             recorder.update_loss_stats(loss_stats)
 
-            logits, _ = output
+            logits, _, _ = output #output: (logits, centers, bboxes)
+
             _, pred = torch.max(F.softmax(logits,dim=1), 1)
 
             metric_stats = evaluator.evaluate(pred, batch[4])
@@ -92,18 +92,21 @@ class Trainer(object):
                 recorder.record('train')
     
     def process_output_data(self, output, layer_rects_gt, labels, bboxes_gt):
-        logits, local_params = output
+        logits, centers, local_params = output #output: (logits, centers, bboxes)
         scores, pred = torch.max(F.softmax(logits, dim = 1), 1)
 
         fragmented_layers_gt = layer_rects_gt[labels == 1]
         fragmented_layers_pred = layer_rects_gt[pred == 1]
-        
+        '''
+        merging_groups_pred = local_params[labels == 1] 
+        scores = scores[labels == 1]
+        '''
         merging_groups_pred = local_params[pred == 1] 
-        merging_groups_gt = bboxes_gt[labels == 1] + fragmented_layers_gt
-        
         scores = scores[pred == 1]
         merging_groups_pred_nms = nms_merge(merging_groups_pred, scores, threshold=0.45)
 
+        merging_groups_gt = bboxes_gt[labels == 1] + fragmented_layers_gt
+    
         return {
                 'fragmented_layers_gt': fragmented_layers_gt,
                 'fragmented_layers_pred': fragmented_layers_pred,
@@ -157,8 +160,8 @@ class Trainer(object):
                 label_list.append(labels) 
 
                 if visualizer is not None:
-                    visualizer.visualize_pred(fragmented_layers_pred, merging_groups_pred,batch[7][0])
-                    visualizer.visualize_nms(merging_groups_pred_nms,batch[7][0])
+                    visualizer.visualize_pred(fragmented_layers_pred, merging_groups_pred, batch[7][0])
+                    visualizer.visualize_nms(merging_groups_pred_nms, batch[7][0])
                     visualizer.visualize_gt(fragmented_layers_gt, merging_groups_gt, batch[7][0])
                     
         val_metric_stats = evaluator.evaluate(torch.cat(pred_list), torch.cat(label_list))
@@ -300,7 +303,8 @@ class Trainer(object):
                     if correct_idx_confirm == 'y':
                         if  len(correct_idx_list) and correct_idx_list[0] != '':
                             correct_dataset(rootDir, artboard_idx, node_indices, correct_idx_list)
-
+                    
+                    visualizer.remove_files()
         return val_metric_stats
 def make_trainer(network):
     return Trainer(network)

@@ -67,33 +67,67 @@ def IoU(box1, box2):
 
 def nms_merge(bboxes:torch.Tensor, scores:torch.Tensor, threshold=0.45):
     '''
-    bboxes: [N, 4] (x1,y1,x2,y2)
+    bboxes: [N, 4] (x, y, w, h)
     scores: [N, 1]
     '''
     bbox_results = []
-    sort_idx = torch.argsort(scores,dim=0,descending=True)
-    bboxes = bboxes[sort_idx]
+    sort_idx = torch.argsort(scores, dim = 0, descending = True)
+    bboxes = bboxes[sort_idx] 
     sum = 0
-   
-    while bboxes.shape[0]!=0:
-        single_box = bboxes[0,:]
-        if bboxes.shape[0]==1:
+    while bboxes.shape[0] != 0:
+        single_box = bboxes[0, :]
+        if bboxes.shape[0] == 1:
             sum += 1
-            bbox_results.append(bboxes[0,:])
+            bbox_results.append(bboxes[0, :])
             break
-        bbox_list = bboxes[1:,:]
+        bbox_list = bboxes[1:, :]
         #print(single_box.shape, bboxes[1:,:].shape)
         ious = IoU(single_box, bbox_list)
        
         overlapped = (ious > threshold)
-        overlapped_bboxes = bbox_list[overlapped,:]
-        sum  += overlapped_bboxes.shape[0]+1
-        merged_bboxes = torch.cat((single_box[None,...], overlapped_bboxes),dim=0)
-        final_bbox, _ = torch.median(merged_bboxes,dim=0)
+        overlapped_bboxes = bbox_list[overlapped, :]
+        sum  += overlapped_bboxes.shape[0] + 1
+        merged_bboxes = torch.cat((single_box[None, ...], overlapped_bboxes), dim=0)
+        final_bbox, _ = torch.median(merged_bboxes, dim=0)
         
         #final_bbox[2:4] = final_bbox[2:4] - final_bbox[0:2]
         
         bbox_results.append(final_bbox)
-        bboxes = bbox_list[~overlapped,:]
+        bboxes = bbox_list[~overlapped, :]
    
     return bbox_results
+
+def get_the_bbox_of_cluster(bboxes):
+    '''
+    bboxes: [N, 4] (xywh)
+    return: (xywh)
+    '''
+    b1_mins = bboxes[:, 0:2]
+    b1_maxs = bboxes[:, 0:2] + bboxes[:, 2:4]
+    xy = torch.min(b1_mins, dim = 0)[0]
+    xy2 = torch.max(b1_maxs, dim = 0)[0]
+    wh = xy2 - xy
+    return torch.cat((xy, wh), dim=0)
+
+def vote_clustering(centroids, layer_rects, radius=0.001):
+    '''
+    params: centeroids: [N, 2]
+            layer_rects: [N, 4] (xywh)
+    return: [N, 4]
+    description: randomly pick i_th centroid, find layers around it within ball centered at it, the radius of which is less than t
+    merging these layers' bboxes to get an anchor box for each layer
+    delete these layers and repeat this process until centroids is empty
+    '''
+    results = torch.zeros_like(layer_rects, device = layer_rects.get_device())
+    prev_mask = (torch.zeros(layer_rects.shape[0], device=layer_rects.get_device()) > 1)
+    while torch.sum(~prev_mask) != 0:
+        centroid_mask = centroids[~prev_mask, :]
+        seed = centroid_mask[0]
+        dists = torch.sqrt(torch.sum((centroids - seed) ** 2, dim=1))
+        cur_mask = torch.logical_and((dists < radius), ~prev_mask)
+        cluster_layers = layer_rects[cur_mask, :]
+        cluster_bbox = get_the_bbox_of_cluster(cluster_layers)
+        results[cur_mask,: ] += cluster_bbox
+        prev_mask = torch.logical_or(cur_mask, prev_mask) 
+    return results
+        

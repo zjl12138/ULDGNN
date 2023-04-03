@@ -1,4 +1,5 @@
-from lib.utils.net_utils import load_network
+from torch.serialization import load
+from lib.utils.net_utils import load_network, load_partial_network
 from lib.datasets import make_data_loader
 from lib.config import cfg
 from lib.visualizers import visualizer
@@ -41,18 +42,25 @@ def train(cfg, network, begin_epoch=0):
                             cfg.model_dir, 
                             cfg.train.resume)
     '''
-    train_loader = make_data_loader(cfg, is_train=True, is_distributed=cfg.train.is_distributed)
+    train_loader = make_data_loader(cfg, is_train=True, is_distributed = cfg.train.is_distributed)
     print("Training artboards: ", len(train_loader))
     val_loader = make_data_loader(cfg, is_train=False)
     print("validating artboards: ", len(val_loader))
     vis = visualizer(cfg.visualizer)
     best_epoch = -1
     best_acc = -1
+    
     if begin_epoch > 0 and cfg.train.save_best_acc: 
-        best_epoch = begin_epoch
-        val_metric_stats = trainer.val(begin_epoch, val_loader, evaluator, recorder, None)
-        best_acc = val_metric_stats['accuracy']
-        
+        if cfg.train.is_distributed:
+            if cfg.train.local_rank == 0:
+                best_epoch = begin_epoch
+                val_metric_stats = trainer.val(begin_epoch, val_loader, evaluator, recorder, None)
+                best_acc = val_metric_stats['accuracy']
+        else:
+            best_epoch = begin_epoch
+            val_metric_stats = trainer.val(begin_epoch, val_loader, evaluator, recorder, None)
+            best_acc = val_metric_stats['accuracy']
+
     for epoch in range(begin_epoch, cfg.train.epoch):
         #trainer.val(epoch, val_loader, evaluator, recorder, None)
 
@@ -64,18 +72,20 @@ def train(cfg, network, begin_epoch=0):
         #if (epoch+1) % cfg.train.save_ep == 0:
         #    save_model(network, optimizer,scheduler, recorder, cfg.model_dir,
         #               epoch, True)
-        if (epoch+1) % cfg.train.eval_ep == 0 and cfg.local_rank == 0:
-            if cfg.train.save_best_acc:
-                val_metric_stats = trainer.val(epoch, val_loader, evaluator, recorder, None, False)
-             
-                if val_metric_stats['accuracy'] > best_acc:
-                    print("model with best accuracy saving...")
-                    best_epoch = epoch
-                    best_acc = val_metric_stats['accuracy']
-                    save_model(network, optimizer, scheduler, recorder, cfg.model_dir, best_epoch, True)
-            else:    
-                    print("saving model...")
-                    save_model(network, optimizer, scheduler, recorder, cfg.model_dir, best_epoch, True)
+        if (epoch+1) % cfg.train.eval_ep == 0:
+            if (not cfg.train.is_distributed)  or (cfg.train.local_rank == 0):
+                val_metric_stats = trainer.val(epoch, val_loader, evaluator, recorder, vis if cfg.test.vis_bbox else None, False)
+                
+                if cfg.train.save_best_acc:
+                
+                    if val_metric_stats['accuracy'] > best_acc:
+                        print("model with best accuracy saving...")
+                        best_epoch = epoch
+                        best_acc = val_metric_stats['accuracy']
+                        save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, False)
+
+                print("saving model...")
+                save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, True)
 
         #if (epoch+1) % cfg.train.vis_ep == 0:
         #    trainer.val(epoch, val_loader, evaluator, recorder, vis)
@@ -98,7 +108,8 @@ if __name__=='__main__':
         #vis.visualize(nodes, bboxes, file_list[0])
     '''
     if cfg.train.is_distributed:
-        print("distributed training!")
+        print("distributed training! using device ", int(os.environ['RANK']))
+        
         cfg.train.local_rank = int(os.environ['RANK']) % torch.cuda.device_count()
         torch.cuda.set_device(cfg.train.local_rank)
         torch.distributed.init_process_group(backend="nccl",
@@ -111,5 +122,7 @@ if __name__=='__main__':
     for n, v in network.named_parameters():
         if v.requires_grad:
             print(n)
-    begin_epoch = load_network(network, cfg.model_dir)
+    #begin_epoch = load_network(network, cfg.model_dir)
+    begin_epoch = load_partial_network(network, cfg.model_dir)
+    print(begin_epoch)
     train(cfg, network, begin_epoch)

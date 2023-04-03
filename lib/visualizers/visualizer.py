@@ -9,7 +9,7 @@ class visualizer:
         self.vis_dir = vis_cfg.vis_dir
 
     def scale_to_img(self, x, H, W):
-        return (int(x[0]*W), int(x[1]*H), int(x[2]*W), int(x[3]*H))
+        return (int(x[0] * W), int(x[1] * H), int(x[2] * W), int(x[3] * H))
 
     def visualize_with_labels(self, layer_rects, layer_idxs, img_path):
         file_path, artboard_name = os.path.split(img_path)
@@ -60,6 +60,9 @@ class visualizer:
         for bbox in bbox_results:
             cv2.rectangle(img_1, self.scale_to_img(bbox, H, W), (0, 255, 0), 1)
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-group_nms.png'), img_1)
+    
+    def remove_files(self):
+        os.system(f"rm -f {self.vis_dir}/*.png")
 
             
         

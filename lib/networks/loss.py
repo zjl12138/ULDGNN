@@ -37,7 +37,7 @@ def ciou_loss(box1, box2):
     output:
         ciou: shepe = [batch_size, 1]
     """
-    # 计算box的左上角和右下角
+    # up_left corner and right-down corner
     b1_xy = box1[..., :2]
     b1_wh = box1[..., 2:4]
     #b1_wh_half = b1_wh / 2
@@ -49,7 +49,7 @@ def ciou_loss(box1, box2):
     #b2_wh_half = b2_wh / 2
     b2_mins = b2_xy
     b2_maxs = b2_xy + b2_wh
-    # 计算iou
+    # iou
     intersect_mins = torch.max(b1_mins, b2_mins)
     intersect_maxs = torch.min(b1_maxs, b2_maxs)
     intersect_wh = torch.max(intersect_maxs - intersect_mins, torch.zeros_like(intersect_maxs))
@@ -58,9 +58,9 @@ def ciou_loss(box1, box2):
     b2_area = b2_wh[..., 0] * b2_wh[..., 1]
     union_area = b1_area + b2_area - intersect_area
     iou = intersect_area / torch.clamp(union_area, min=1e-6)
-    # 计算中心的差距
+    # distance between centers
     center_distance = torch.sum(torch.pow((b1_xy - b2_xy), 2), -1)
-    # 计算两个框的最小外包矩形的对角线距离
+    # dialog length
     enclose_mins = torch.min(b1_mins, b2_mins)
     enclose_maxs = torch.max(b1_maxs, b2_maxs)
     enclose_wh = torch.max(enclose_maxs - enclose_mins, torch.zeros_like(enclose_maxs))

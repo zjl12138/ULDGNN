@@ -1,21 +1,16 @@
 train:
-    lr: 5e-5
-    local_rank: 1
-    save_best_acc: False
+    lr: 1e-4
+    local_rank: 0
+    save_best_acc: True
+    is_distributed: False
   
 test:
-    vis_bbox: False
-    val_nms: True
-
-train_dataset:
-    rootDir: '../../dataset/graph_dataset_rerefine'
-    index_json:  = 'index_correct.json'
-
-test_dataset:
-    rootDir: '../../dataset/graph_dataset_rerefine'
-    index_json: 'index_correct.json'
+    vis_bbox: True
+    val_nms: False
 
 network:
+    bbox_regression_type: 'offset_based_on_layer'
+
     pos_embedder:
         multires: 9
         out_dim: 128
@@ -27,6 +22,9 @@ network:
     img_embedder:
         outdim: 128
         name: 'resnet50'
+
+    reg_loss:
+        weight: 10
 
     gnn_fn:
       gnn_type: 'GPSModel'

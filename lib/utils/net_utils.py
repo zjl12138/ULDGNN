@@ -92,3 +92,43 @@ def load_model(net,
     scheduler.load_state_dict(pretrained_model['scheduler'])
     recorder.load_state_dict(pretrained_model['recorder'])
     return pretrained_model['epoch'] + 1
+
+def load_partial_network(net, model_dir, resume=True, epoch=-1, strict=True):
+    if not resume:
+        return 0
+
+    if not os.path.exists(model_dir):
+        print('pretrained model does not exist', 'red')
+        return 0
+
+    if os.path.isdir(model_dir):
+        pths = [
+            int(pth.split('.')[0]) for pth in os.listdir(model_dir)
+            if pth != 'latest.pth'
+        ]
+        if len(pths) == 0 and 'latest.pth' not in os.listdir(model_dir):
+            return 0
+        if epoch == -1:
+            if 'latest.pth' in os.listdir(model_dir):
+                pth = 'latest'
+            else:
+                pth = max(pths)
+        else:
+            pth = epoch
+        model_path = os.path.join(model_dir, '{}.pth'.format(pth))
+    else:
+        model_path = model_dir
+
+    print('load model: {}'.format(model_path))
+    pretrained_model = torch.load(model_path)['net']
+    model_dict = net.state_dict()
+    keys = []
+    for k, v in pretrained_model.items():
+        keys.append(k)
+    i = 0
+    for k, v in model_dict.items():
+        if keys[i] in pretrained_model.keys() and v.size() == pretrained_model[keys[i]].size():
+            model_dict[k] = pretrained_model[keys[i]]
+            i = i + 1
+    net.load_state_dict(model_dict)
+    return 1

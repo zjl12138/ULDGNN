@@ -4,24 +4,24 @@ train:
     lr: 1e-4
     local_rank: 0
     save_best_acc: True
-    is_distributed: True
+    is_distributed: False
     eval_ep: 10
     batch_size: 6
 
 train_dataset:
-    index_json: 'index_train.json'
+    index_json: 'index_tmp.json'
 
 test_dataset:
-    index_json: 'index_test.json'
+    index_json: 'index_tmp.json'
 
 test:
     vis_bbox: True
     val_nms: False
 
 network:
-    bbox_regression_type: 'voting'
+    #bbox_regression_type: 'voting'
     bbox_vote_radius: 0.0001
-    #bbox_regression_type: 'center_regress'
+    bbox_regression_type: 'center_regress'
     #bbox_regression_type:  'offset_based_on_layer'
     pos_embedder:
         multires: 9
