@@ -115,19 +115,37 @@ def vote_clustering(centroids, layer_rects, radius=0.001):
             layer_rects: [N, 4] (xywh)
     return: [N, 4]
     description: randomly pick i_th centroid, find layers around it within ball centered at it, the radius of which is less than t
-    merging these layers' bboxes to get an anchor box for each layer
-    delete these layers and repeat this process until centroids is empty
+                 merging these layers' bboxes to get an anchor box for each layer
+                 delete these layers and repeat this process until centroids is empty
     '''
     results = torch.zeros_like(layer_rects, device = layer_rects.get_device())
-    prev_mask = (torch.zeros(layer_rects.shape[0], device=layer_rects.get_device()) > 1)
+    prev_mask = (torch.zeros(layer_rects.shape[0], device = layer_rects.get_device()) > 1)
     while torch.sum(~prev_mask) != 0:
         centroid_mask = centroids[~prev_mask, :]
         seed = centroid_mask[0]
-        dists = torch.sqrt(torch.sum((centroids - seed) ** 2, dim=1))
+        dists = torch.sqrt(torch.sum((centroids - seed) ** 2, dim = 1))
         cur_mask = torch.logical_and((dists < radius), ~prev_mask)
         cluster_layers = layer_rects[cur_mask, :]
         cluster_bbox = get_the_bbox_of_cluster(cluster_layers)
         results[cur_mask,: ] += cluster_bbox
         prev_mask = torch.logical_or(cur_mask, prev_mask) 
     return results
-        
+
+def vote_clustering_each_layer(centroids, layer_rects, radius=0.001):
+    '''
+    params: centeroids: [N, 2]
+            layer_rects: [N, 4] (xywh)
+    return: [N, 4]
+    description: randomly pick i_th centroid, find layers around it within ball centered at it, the radius of which is less than t
+                 merging these layers' bboxes to get an anchor box for each layer
+                 delete these layers and repeat this process until centroids is empty
+    '''
+    results = torch.zeros_like(layer_rects, device = layer_rects.get_device())
+    for i in range(layer_rects.shape[0]):
+        seed = centroids[i]
+        dists = torch.sqrt(torch.sum((centroids - seed) ** 2, dim = 1))
+        cur_mask = (dists < radius)
+        cluster_layers = layer_rects[cur_mask, :]
+        cluster_bbox = get_the_bbox_of_cluster(cluster_layers)
+        results[i, :] += cluster_bbox
+    return results

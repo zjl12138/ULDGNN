@@ -7,9 +7,12 @@ from lib.networks.loss import make_classifier_loss, make_regression_loss
 from lib.config import cfg as CFG
 import importlib
 import torch.nn.functional as F
-from lib.utils import vote_clustering
-
+from lib.utils import vote_clustering, vote_clustering_each_layer
 cfg = CFG.network
+
+def make_gnn(gnn_type):
+    norm_module = importlib.import_module("lib.networks.network")
+    return getattr(norm_module,gnn_type)
 
 class Classifier(nn.Module):
     def __init__(self, cfg):
@@ -45,19 +48,18 @@ class Classifier(nn.Module):
 
 class Classifier_with_gnn(nn.Module):
     def __init__(self, cfg):
-        super(Classifier, self).__init__()
+        super(Classifier_with_gnn, self).__init__()
         self.in_dim = cfg.in_dim
         self.latent_dims = cfg.latent_dims
+        self.gnn_latent_dims = cfg.gnn_latent_dims
+        self.gnn_num_heads = cfg.num_heads
         self.make(cfg)
 
-        self.gnn_latent_dims = cfg.latent_dims
-        self.gnn_num_heads = cfg.num_heads
-        
     def make(self, cfg):
         layer_list = []
         in_dim = self.in_dim
         
-        for idx, (latent_dim, num_head) in enumerate(zip(self.latent_dims, self.num_heads)):
+        for idx, (latent_dim, num_head) in enumerate(zip(self.gnn_latent_dims, self.gnn_num_heads)):
             self.add_module(
                 f'GPSLayer{idx}', GPSLayer(
                     in_dim, 
@@ -87,9 +89,12 @@ class Classifier_with_gnn(nn.Module):
                                                           '', '')
                               )
         
-    def forward(self, x, clip_val=False):
-        for _, fc_layer in self.named_children():
-            x = fc_layer(x)
+    def forward(self, x, edges, node_indices, clip_val=False):
+        for name, fc_layer in self.named_children():
+            if 'GPSLayer' in name:
+                x = fc_layer((x, edges, node_indices))
+            else:
+                x = fc_layer(x)
         if clip_val:
             x = torch.nn.Tanh()(x)
         return x
@@ -167,10 +172,6 @@ class GPSModel(nn.Module):
         for _, gnn_layer in self.named_children():
             x = gnn_layer((x, edge_index, node_indices))
         return x
-        
-def make_gnn(gnn_type):
-    norm_module = importlib.import_module("lib.networks.network")
-    return getattr(norm_module,gnn_type)
 
 class Network(nn.Module):
     def __init__(self):
@@ -186,15 +187,22 @@ class Network(nn.Module):
         print("the bbox regression type: ", self.bbox_regression_type)
         self.gnn_fn = make_gnn(cfg.gnn_fn.gnn_type)(cfg.gnn_fn)
         self.cls_fn = Classifier(cfg.cls_fn)
-        self.loc_fn = Classifier(cfg.loc_fn)
-        if cfg.train_mode == 2:
+        self.loc_type = cfg.loc_fn.loc_type
+        if cfg.loc_fn.loc_type =='classifier_with_gnn':
+            self.loc_fn = Classifier_with_gnn(cfg.loc_fn) 
+        else:
+            self.loc_fn = Classifier(cfg.loc_fn)
+        if cfg.train_mode == 3:
+            print("fix cls branch!")
+            self.fix_network(self.cls_fn)
+        elif cfg.train_mode == 2:
             print("train localizaiton branch only!")
             self.fix_network(self.pos_embedder)
             self.fix_network(self.type_embedder)
             self.fix_network(self.img_embedder)
             self.fix_network(self.gnn_fn)
             self.fix_network(self.cls_fn)
-        elif cfg.train_mode==1:
+        elif cfg.train_mode == 1:
             print("fix localization branch!")
             self.fix_network(self.loc_fn)
         else:
@@ -210,7 +218,7 @@ class Network(nn.Module):
             xy = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2] - local_params[:, 2 : 4] * 0.5
             wh = local_params[:, 2 : 4]
             bboxes = torch.cat((xy, wh), dim=1)
-            centroids = bboxes[:, 0:2] + 0.5 * bboxes[:, 2:4]
+            centroids = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2]
             #pred_bboxes.requires_grad = True
             #local_params[:, 0 : 2] = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2] - local_params[:, 2 : 4] * 0.5
         elif self.bbox_regression_type == 'offset_based_on_layer':
@@ -221,8 +229,8 @@ class Network(nn.Module):
             assert(local_params.shape[1] == 6)
             centroids = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2]
             anchor_bboxes = vote_clustering(centroids, layer_rects, radius = self.bbox_vote_radius)
-            bboxes = local_params[:, 2:6] + anchor_bboxes
-
+            #anchor_bboxes = vote_clustering_each_layer(centroids, layer_rects, radius = self.bbox_vote_radius)
+            bboxes = local_params[:, 2 : 6] + anchor_bboxes
         else:
             raise(f"No such bbox regression type: {self.bbox_regression_type}")
         return (logits, centroids, bboxes)
@@ -234,10 +242,10 @@ class Network(nn.Module):
 
         cls_loss_fn = make_classifier_loss(cfg.cls_loss)
         reg_loss_fn = make_regression_loss(cfg.reg_loss)
-        huber_fn = torch.nn.HuberLoss('mean', delta = 0.3) 
+        huber_fn = torch.nn.L1Loss() 
         loss_stats = {}
         cls_loss = cls_loss_fn(logits, labels)
-        assert(torch.sum(bboxes[labels == 0]).item()<1e-8)
+        assert(torch.sum(bboxes[labels == 0]).item() < 1e-8)
         
         scores, pred = torch.max(F.softmax(logits, dim = 1), 1)
         #training_mask = torch.logical_or(labels == 1, pred == 1)
@@ -245,6 +253,7 @@ class Network(nn.Module):
         local_params = local_params[training_mask]
         bboxes = bboxes[training_mask]
         layer_rects = layer_rects[training_mask]
+        centroids = centroids[training_mask]
         #local_params = local_params + layer_rects'''
         bboxes = bboxes + layer_rects
         bboxes_center = bboxes[:, 0:2] + bboxes[:, 2:4] * 0.5
@@ -257,11 +266,10 @@ class Network(nn.Module):
         
         loss_stats['cls_loss'] = cls_loss
         loss_stats['reg_loss'] = reg_loss
-        loss_stats['center_reg_loss'] = center_reg_loss
+        loss_stats['center_reg_loss'] = 1000 * center_reg_loss
         loss =  cfg.cls_loss.weight * cls_loss \
-                    + cfg.reg_loss.weight * reg_loss + 100 * center_reg_loss
-        #loss = cfg.reg_loss.weight * reg_loss
-        #loss = 100 * center_reg_loss
+                    + cfg.reg_loss.weight * reg_loss 
+        #loss = center_reg_loss + cfg.cls_loss.weight * cls_loss
         loss_stats['loss'] =  loss
         return loss, loss_stats
 
@@ -276,7 +284,10 @@ class Network(nn.Module):
         batch_embedding = pos_embedding + type_embedding + img_embedding
         gnn_out = self.gnn_fn((batch_embedding, edges, node_indices))
         logits = self.cls_fn(gnn_out)
-        loc_params = self.loc_fn(gnn_out, clip_val=True)
+        if self.loc_type == 'classifier_with_gnn':
+            loc_params = self.loc_fn(gnn_out, edges, node_indices)
+        else:
+            loc_params = self.loc_fn(gnn_out)
         #print(logits.shape, loc_params.shape)
         loss, loss_stats = self.loss([logits, loc_params],[layer_rect, labels, bboxes])
         return self.process_output_data((logits, loc_params), layer_rect), loss, loss_stats

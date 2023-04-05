@@ -47,7 +47,7 @@ cfg.train.save_best_acc=True
 cfg.train.save_ep = 10
 cfg.train.eval_ep = 10
 cfg.train.vis_ep = 1000
-cfg.train.epoch = 1000
+cfg.train.epoch = 100000
 cfg.train.lr = 7e-5
 cfg.train.weight_decay = 1e-5
 cfg.train.optim = 'adamw'
@@ -69,7 +69,7 @@ cfg.test.val_nms = False
 
 cfg.network = CN()
 cfg.network.train_mode = 0  # mode 0: train two branches together, 1: only train cls branch, 2:only train loc branch
-
+cfg.network.bbox_regression_type = 'voting'
 cfg.network.network_module = 'lib.networks.network'
 cfg.network.network_path = 'lib/networks/network.py'
 
@@ -102,6 +102,7 @@ cfg.network.cls_fn.norm_type = ''
 cfg.network.cls_fn.classes = 2
 
 cfg.network.loc_fn = CN()
+cfg.network.loc_fn.loc_type = 'classifier'
 cfg.network.loc_fn.latent_dims = [256,256]
 #cfg.network.loc_fn.latent_dims = [128,64]
 cfg.network.loc_fn.act_fn = 'LeakyReLU'

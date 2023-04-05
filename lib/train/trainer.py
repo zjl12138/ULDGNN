@@ -113,7 +113,8 @@ class Trainer(object):
                 'merging_groups_gt': merging_groups_gt,
                 'merging_groups_pred': merging_groups_pred,
                 'merging_groups_pred_nms': merging_groups_pred_nms,
-                'label_pred': pred
+                'label_pred': pred,
+                'centers_pred': centers[pred==1, :]
                }
 
     def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False):
@@ -151,6 +152,8 @@ class Trainer(object):
                 merging_groups_pred_nms = fetch_data['merging_groups_pred_nms']
                 
                 label_pred = fetch_data['label_pred']
+                
+                centers_pred = fetch_data['centers_pred']
                 if val_nms:
                     #prev_pred = pred
                     label_pred = evaluator.correct_pred_with_nms(label_pred, merging_groups_pred_nms, layer_rects, types, threshold=0.45) 
@@ -163,6 +166,7 @@ class Trainer(object):
                     visualizer.visualize_pred(fragmented_layers_pred, merging_groups_pred, batch[7][0])
                     visualizer.visualize_nms(merging_groups_pred_nms, batch[7][0])
                     visualizer.visualize_gt(fragmented_layers_gt, merging_groups_gt, batch[7][0])
+                    visualizer.visualize_offset_of_centers(centers_pred, fragmented_layers_pred, batch[7][0])
                     
         val_metric_stats = evaluator.evaluate(torch.cat(pred_list), torch.cat(label_list))
 

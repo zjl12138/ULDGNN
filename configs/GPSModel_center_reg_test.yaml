@@ -1,8 +1,8 @@
-gpus: [0,1,2,3]
+gpus: [3]
 
 train:
-    lr: 1e-4
-    local_rank: 0
+    lr: 1e-5
+    local_rank: 3
     save_best_acc: True
     is_distributed: False
     eval_ep: 10
@@ -20,7 +20,7 @@ test:
 
 network:
     #bbox_regression_type: 'voting'
-    bbox_vote_radius: 0.0001
+    bbox_vote_radius: 0.001
     bbox_regression_type: 'center_regress'
     #bbox_regression_type:  'offset_based_on_layer'
     pos_embedder:
@@ -36,12 +36,25 @@ network:
         name: 'resnet50'
 
     reg_loss:
-        weight: 10
+        weight: 1
 
     gnn_fn:
       gnn_type: 'GPSModel'
       latent_dims: [128, 128, 128, 128, 128, 128, 128, 128, 128]
       num_heads: [4, 4, 4, 4, 4, 4, 4, 4, 4] 
+      out_dim: 128
+      local_gnn_type: 'GINConv'
+      global_model_type: 'Transformer'
+      act_fn: 'relu'
+      dropout: 0.0
+      attn_dropout: 0.2
+      layer_norm: True
+      batch_norm: False
+
+    loc_fn: 
+      loc_type: 'classifier'
+      gnn_latent_dims: [128, 128, 128]
+      num_heads: [4, 4, 4] 
       out_dim: 128
       local_gnn_type: 'GINConv'
       global_model_type: 'Transformer'

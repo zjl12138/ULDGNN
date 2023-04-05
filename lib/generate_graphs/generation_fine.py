@@ -142,29 +142,29 @@ async def generate_single_graph(layer_list, output_path, artboard_height, artboa
   
     edges = root.gen_graph(tmp)
     
-    assert(np.max(np.array(edges))==len(layer_list)-1)
-    if(len(layer_list)<2):
-        print("xxxxxxxx",output_path)
-    json.dump({'layer_rect':layer_rect,
-               'edges':edges,
-                'bbox':bbox, 
-                'types':types, 'labels':labels,'artboard_width':artboard_width, 
-                'artboard_height':artboard_height,
-                'original_artboard':json_path}, open(output_path,"w"))
+    assert(np.max(np.array(edges)) == len(layer_list) - 1)
+    if(len(layer_list) < 2):
+        print("xxxxxxxx", output_path)
+    json.dump({'layer_rect': layer_rect,
+               'edges': edges,
+                'bbox': bbox, 
+                'types': types, 'labels': labels, 'artboard_width': artboard_width, 
+                'artboard_height': artboard_height,
+                'original_artboard': json_path}, open(output_path, "w"))
 
 def clip_val(x, lower, upper):
     x = x if x >= lower else lower
-    x = x if x <=upper else upper
+    x = x if x <= upper else upper
     return x
 
 async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_path:str, output_dir:str, folder_name):
     global Artboard_index
-    assert(len(artboard_json['layers'])>=10)
+    assert(len(artboard_json['layers']) >= 10)
     artboard_height = float(artboard_json['artboard_height']) # artboard_json is a dictionary
     artboard_width = float(artboard_json['artboard_width'])
 
-    output_dir = os.path.join(output_dir,folder_name)
-    os.makedirs(output_dir,exist_ok=True)
+    output_dir = os.path.join(output_dir, folder_name)
+    os.makedirs(output_dir, exist_ok=True)
     file_name = folder_name
 
     split_layers = []
@@ -175,7 +175,7 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
     copy_artboard_path = os.path.join(output_dir, file_name+".png")
     os.system(f"cp {img_path} {copy_artboard_path}")
    
-    remove_non_valid_layers=0    
+    remove_non_valid_layers = 0    
     layer_img_list_id = []
     for idx, layer in enumerate(artboard_json['layers']):
         x, y, w, h = layer['layer_rect']
@@ -187,22 +187,22 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
         if layer['label'] == 1 :
             merge_state=True
             bbox_x, bbox_y, bbox_w, bbox_h = layer['bbox']
-            bbox_x1, bbox_y1, bbox_x2, bbox_y2 = clip_val(bbox_x, 0,  artboard_width), clip_val(bbox_y, 0, artboard_height), clip_val(bbox_x+bbox_w,0,artboard_width), clip_val(bbox_y+bbox_h,0,artboard_height)
-            x1, y1, x2, y2 = clip_val(x1, bbox_x1, bbox_x2),clip_val(y1, bbox_y1, bbox_y2),clip_val(x2, bbox_x1, bbox_x2),clip_val(y2, bbox_y1, bbox_y2)
-            layer['layer_rect'] = [x1, y1, x2-x1, y2-y1]
+            bbox_x1, bbox_y1, bbox_x2, bbox_y2 = clip_val(bbox_x, 0, artboard_width), clip_val(bbox_y, 0, artboard_height), clip_val(bbox_x+bbox_w,0,artboard_width), clip_val(bbox_y+bbox_h,0,artboard_height)
+            x1, y1, x2, y2 = clip_val(x1, bbox_x1, bbox_x2), clip_val(y1, bbox_y1, bbox_y2), clip_val(x2, bbox_x1, bbox_x2), clip_val(y2, bbox_y1, bbox_y2)
+            layer['layer_rect'] = [x1, y1, x2 - x1, y2 - y1]
             
         elif layer['label'] == 0 :
             merge_state = False
             
         #layer_img = artboard_img.crop((x1,y1,x2,y2)).resize((64,64),resample=Image.BICUBIC)
-        layer_img_list_id.append([layer['id'], (x1,y1,x2,y2)])
+        layer_img_list_id.append([layer['id'], (x1, y1, x2, y2)])
 
         tmp_list.append(layer)
         if len(artboard_json['layers']) - idx < 10:
             continue
         if merge_state:
             continue
-        if len(tmp_list)>=40:
+        if len(tmp_list) >= 100:
             split_layers.append(tmp_list)
             tmp_list = []
     if 64 * 64 * len(layer_img_list_id)>=89478485:
@@ -213,15 +213,15 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
     artboard_folder, _ = os.path.split(img_path)
     for idx, layer_img_id_ in enumerate(layer_img_list_id):
         layer_img_id, bbox = layer_img_id_
-        x1,y1,x2,y2 = bbox
-        layer_img_path = os.path.join(artboard_folder,'layer_imgs', layer_img_id+".png")
+        x1, y1, x2, y2 = bbox
+        layer_img_path = os.path.join(artboard_folder, 'layer_imgs', layer_img_id + ".png")
         if not os.path.exists(layer_img_path):  #if the sketchtool cannot export layer named layer_img_id, we just use the patch img from original artboard img according to bbox
-            layer_img = artboard_img.crop((x1,y1,x2,y2)).resize((64,64),resample=Image.BICUBIC)
+            layer_img = artboard_img.crop((x1, y1, x2, y2)).resize((64, 64), resample=Image.BICUBIC)
         else:
             layer_img = Image.open(layer_img_path).convert("RGBA").resize((64,64),resample=Image.BICUBIC)
-            if (np.array(layer_img)==0).all():
-                layer_img = artboard_img.crop((x1,y1,x2,y2)).resize((64,64),resample=Image.BICUBIC)
-        assest_image.paste(layer_img, (0, idx*64))
+            #if (np.array(layer_img)==0).all():
+            #    layer_img = artboard_img.crop((x1,y1,x2,y2)).resize((64,64),resample=Image.BICUBIC)
+        assest_image.paste(layer_img, (0, idx * 64))
           
     assest_image.save(os.path.join(output_dir, file_name+"-assets.png"))
     
@@ -237,13 +237,13 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
     sum = 0
     for idx, layer_list in enumerate(split_layers):
         sum += len(layer_list)
-        assert(len(layer_list)>1)
+        assert(len(layer_list) > 1)
         await generate_single_graph(layer_list,
                         os.path.join(output_dir, file_name+f"-{idx}.json"),
                         artboard_height,artboard_width, json_path)
     #print(remove_non_valid_layers, sum ,len(artboard_json['layers']))
-    assert(sum==len(layer_img_list_id))
-    assert(sum==len(artboard_json['layers'])-remove_non_valid_layers)
+    assert(sum == len(layer_img_list_id))
+    assert(sum == len(artboard_json['layers']) - remove_non_valid_layers)
           
 def generate_graph_sync(artboard_json, artboard_img, img_path, json_path, output_dir,folder_name):
     return asyncio.run( generate_graph(artboard_json, artboard_img, img_path, json_path, output_dir,folder_name) )
@@ -280,14 +280,14 @@ class GenerateGraphsThread(ProfileLoggingThread):
                 pass
             else:    
             
-                artboard_img :Image = Image.open(img_path).convert("RGBA")
+                artboard_img: Image = Image.open(img_path).convert("RGBA")
                 
-                if (np.array(artboard_img)==0).all():
+                if (np.array(artboard_img) == 0).all():
                     pass
                 else:
                     lock.acquire()
                     folder_name = str(Artboard_index) # the folder to store graphs for this artboard
-                    Artboard_index+=1
+                    Artboard_index += 1
                     lock.release()
                     generate_graph_sync(artboard_json, artboard_img, img_path, json_path, self.output_dir, folder_name)
                
@@ -302,10 +302,10 @@ def generate_graphs(artboard_list: List[str],
     ):
     pbar = tqdm(total = len(artboard_list))
     artboard_queue = Queue()
-    os.makedirs(logfile_folder,exist_ok=True)
-    os.makedirs(profile_folder, exist_ok=True)
-    logfile_path = os.path.join(logfile_folder,"generate_graph.log")
-    profile_path = os.path.join(profile_folder,"generate_graph.profile")
+    os.makedirs(logfile_folder, exist_ok = True)
+    os.makedirs(profile_folder, exist_ok = True)
+    logfile_path = os.path.join(logfile_folder, "generate_graph.log")
+    profile_path = os.path.join(profile_folder, "generate_graph.profile")
 
     for json_path in artboard_list:
         artboard_queue.put(json_path)
@@ -328,24 +328,24 @@ def generate_graphs(artboard_list: List[str],
     
 if __name__=='__main__':
     rootdir="/media/sda1/ljz-workspace/dataset/aliartboards_refine/"
-    outDir = "/media/sda1/ljz-workspace/dataset/graph_dataset_rerefine_fill_blank/"
+    outDir = "/media/sda1/ljz-workspace/dataset/graph_dataset_rerefine_large_graph/"
     logdir = 'out'
-    os.makedirs(outDir, exist_ok=True)
-    os.makedirs(logdir, exist_ok=True)
+    os.makedirs(outDir, exist_ok = True)
+    os.makedirs(logdir, exist_ok = True)
     
     indexes = 5503
     artboard_list = [] 
     index_train = []
-    filter_idx = [447,529,612,1422,2496,3267,4201]
+    filter_idx = [447, 529, 612, 1422, 2496, 3267, 4201]
     for idx in range(indexes):
         if idx not in filter_idx:
-            artboard_list.append(os.path.join(rootdir,str(idx)))
+            artboard_list.append(os.path.join(rootdir, str(idx)))
         #index_train.append({"json": f"{idx}.json", "layerassets":f"{idx}-assets.png", "image":f"{idx}.png"})
         
     generate_graphs(artboard_list, f'{logdir}/log',
                     f'{logdir}/profile',
                     outDir,
-                    max_threads=8)
+                    max_threads = 8)
     #json.dump(index_train,open(f"{outDir}/index_train.json","w"))
    
     
