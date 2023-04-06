@@ -82,7 +82,7 @@ cfg.network.type_embedder.out_dim = 512
 cfg.network.type_embedder.class_num = 11
 
 cfg.network.img_embedder = CN()
-cfg.network.img_embedder.outdim = 512
+cfg.network.img_embedder.out_dim = 512
 cfg.network.img_embedder.name='resnet50'
 
 cfg.network.gnn_fn = CN()
@@ -123,7 +123,7 @@ cfg.network.reg_loss.delta = 0.5
 cfg.network.reg_loss.weight = 10
 
 def make_cfg(args):
-
+    cfg.config_file = args.cfg_file
     with open(args.cfg_file,'r') as f:
         current_cfg = yacs.load_cfg(f)
     if 'parent_cfg' in current_cfg.keys():
@@ -137,6 +137,11 @@ def make_cfg(args):
     cfg.merge_from_other_cfg(current_cfg)
     cfg.merge_from_list(args.opts)
 
+    '''if cfg.network.gnn_fn.gnn_type == 'GPSModel_with_voting':
+        if cfg.network.bbox_regression_type == 'step_voting':
+            cfg.network.loc_fn.classes = 4
+        else:
+            cfg.network.loc_fn.classes = 2'''
     if cfg.network.bbox_regression_type == 'voting':
         cfg.network.loc_fn.classes = 6
     

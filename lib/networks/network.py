@@ -141,14 +141,14 @@ def __init__(self, dim_h,
 '''
 class GPSModel(nn.Module):
     def __init__(self, cfg):
-        super().__init__()
+        super(GPSModel, self).__init__()
         self.latent_dims = cfg.latent_dims
         self.num_heads = cfg.num_heads
         self.make(cfg)
 
     def make(self, cfg):
         in_dim = cfg.in_dim
-        L = len(self.latent_dims)+1
+        L = len(self.latent_dims) + 1
         for idx, (latent_dim, num_head) in enumerate(zip(self.latent_dims, self.num_heads)):
             self.add_module(
                 f'GPSLayer{idx}', GPSLayer(
@@ -169,26 +169,82 @@ class GPSModel(nn.Module):
         x, edge_index, node_indices = batch
         #print(torch.max(edges))
         #print(x.shape)
+        x_in = x
         for _, gnn_layer in self.named_children():
-            x = gnn_layer((x, edge_index, node_indices))
+            x =  gnn_layer((x, edge_index, node_indices))
         return x
+
+class GPSModel_with_voting(nn.Module):
+    def __init__(self, cfg):
+        super(GPSModel_with_voting, self).__init__()
+        self.latent_dims = cfg.latent_dims
+        self.num_heads = cfg.num_heads
+        self.offset_head = nn.Linear(self.latent_dims[-1], 4)
+        self.make(cfg)
+
+    def make(self, cfg):
+        in_dim = cfg.in_dim
+        L = len(self.latent_dims) + 1
+        for idx, (latent_dim, num_head) in enumerate(zip(self.latent_dims, self.num_heads)):
+            self.add_module(
+                f'GPSLayer{idx}', GPSLayer(
+                    in_dim, 
+                    cfg.local_gnn_type,
+                    cfg.global_model_type,
+                    num_head,
+                    cfg.act_fn,
+                    cfg.dropout,
+                    cfg.attn_dropout,
+                    cfg.layer_norm,
+                    cfg.batch_norm
+                )
+            )
+            in_dim = latent_dim
+        
+    def forward(self, batch): # 
+        x, edge_index, node_indices = batch
+        #print(torch.max(edges))
+        #print(x.shape)
+        padding_zeros = torch.zeros((x.shape[0], 4), device = x.get_device())
+        #x = torch.cat((padding_zeros, x), dim = 1)
+        for idx, (name, gnn_layer) in enumerate(self.named_children()):
+            if 'GPS' in name:
+                x = gnn_layer((x, edge_index, node_indices))
+                padding_zeros = padding_zeros + self.offset_head(x)
+        x = torch.cat((padding_zeros, x), dim = 1)
+        del padding_zeros
+        return x 
 
 class Network(nn.Module):
     def __init__(self):
         super(Network, self).__init__()   
-        self.pos_embedder = PosEmbedder(cfg.pos_embedder)
-        self.type_embedder = TypeEmbedder(cfg.type_embedder)
-        self.img_embedder = ImageEmbedder(cfg.img_embedder)
+        
         cfg.gnn_fn.in_dim = cfg.pos_embedder.out_dim
         cfg.cls_fn.in_dim = cfg.gnn_fn.out_dim
         cfg.loc_fn.in_dim = cfg.gnn_fn.out_dim
+
+        if  cfg.gnn_fn.gnn_type == 'GPSModel_with_voting':
+            #cfg.pos_embedder.out_dim = cfg.pos_embedder.out_dim - 4
+            #cfg.type_embedder.out_dim = cfg.type_embedder.out_dim - 4
+            #cfg.img_embedder.out_dim  = cfg.img_embedder.out_dim - 4
+            #cfg.loc_fn.in_dim = cfg.gnn_fn.out_dim - 4
+            cfg.cls_fn.in_dim = cfg.gnn_fn.out_dim + 4
+            print(cfg.pos_embedder.out_dim)
+
         self.bbox_regression_type = cfg.bbox_regression_type
         self.bbox_vote_radius = cfg.bbox_vote_radius   #used for vote clustering
         print("the bbox regression type: ", self.bbox_regression_type)
+
+        self.pos_embedder = PosEmbedder(cfg.pos_embedder)
+        self.type_embedder = TypeEmbedder(cfg.type_embedder)
+        self.img_embedder = ImageEmbedder(cfg.img_embedder)
+
         self.gnn_fn = make_gnn(cfg.gnn_fn.gnn_type)(cfg.gnn_fn)
         self.cls_fn = Classifier(cfg.cls_fn)
         self.loc_type = cfg.loc_fn.loc_type
-        if cfg.loc_fn.loc_type =='classifier_with_gnn':
+        self.gnn_type = cfg.gnn_fn.gnn_type
+        print("loc_fn_type: ", cfg.loc_fn.loc_type)
+        if cfg.loc_fn.loc_type == 'classifier_with_gnn':
             self.loc_fn = Classifier_with_gnn(cfg.loc_fn) 
         else:
             self.loc_fn = Classifier(cfg.loc_fn)
@@ -223,10 +279,16 @@ class Network(nn.Module):
             #local_params[:, 0 : 2] = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2] - local_params[:, 2 : 4] * 0.5
         elif self.bbox_regression_type == 'offset_based_on_layer':
             bboxes = local_params + layer_rects
-            centroids = bboxes[:, 0:2] + 0.5 * bboxes[:, 2:4]
+            centroids = bboxes[:, 0 : 2] + 0.5 * bboxes[:, 2 : 4]
 
         elif self.bbox_regression_type == 'voting':
             assert(local_params.shape[1] == 6)
+            centroids = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2]
+            anchor_bboxes = vote_clustering(centroids, layer_rects, radius = self.bbox_vote_radius)
+            #anchor_bboxes = vote_clustering_each_layer(centroids, layer_rects, radius = self.bbox_vote_radius)
+            bboxes = local_params[:, 2 : 6] + anchor_bboxes
+            
+        elif self.bbox_regression_type == 'step_voting':  #local_params[0:2]:offset, local_params[2:4]: wh
             centroids = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2]
             anchor_bboxes = vote_clustering(centroids, layer_rects, radius = self.bbox_vote_radius)
             #anchor_bboxes = vote_clustering_each_layer(centroids, layer_rects, radius = self.bbox_vote_radius)
@@ -256,11 +318,11 @@ class Network(nn.Module):
         centroids = centroids[training_mask]
         #local_params = local_params + layer_rects'''
         bboxes = bboxes + layer_rects
-        bboxes_center = bboxes[:, 0:2] + bboxes[:, 2:4] * 0.5
+        bboxes_center = bboxes[:, 0 : 2] + bboxes[:, 2 : 4] * 0.5
         center_reg_loss = huber_fn(bboxes_center, centroids)
         #print(local_params, bboxes)
         if local_params.shape[0] == 0:
-            reg_loss = torch.tensor(0., requires_grad=True).to(local_params.get_device())
+            reg_loss = torch.tensor(0., requires_grad = True).to(local_params.get_device())
         else:
             reg_loss = reg_loss_fn(local_params, bboxes)
         
@@ -268,8 +330,8 @@ class Network(nn.Module):
         loss_stats['reg_loss'] = reg_loss
         loss_stats['center_reg_loss'] = 1000 * center_reg_loss
         loss =  cfg.cls_loss.weight * cls_loss \
-                    + cfg.reg_loss.weight * reg_loss 
-        #loss = center_reg_loss + cfg.cls_loss.weight * cls_loss
+                    + cfg.reg_loss.weight * reg_loss #+ 100 * center_reg_loss
+        #loss = 10 * center_reg_loss + cfg.cls_loss.weight * cls_loss
         loss_stats['loss'] =  loss
         return loss, loss_stats
 
@@ -279,17 +341,25 @@ class Network(nn.Module):
         pos_embedding = self.pos_embedder(layer_rect)
         type_embedding = self.type_embedder(classes)
         img_embedding = self.img_embedder(images)
-
+        #print(pos_embedding.shape, type_embedding.shape, img_embedding.shape)
         #batch_embedding = self.pos_embedder(layer_rect)+self.type_embedder(classes)+self.img_embedder(images)
         batch_embedding = pos_embedding + type_embedding + img_embedding
         gnn_out = self.gnn_fn((batch_embedding, edges, node_indices))
         logits = self.cls_fn(gnn_out)
+
+        if self.gnn_type == 'GPSModel_with_voting':
+            gnn_out = gnn_out[:, 4:]
+            center_offset = torch.nn.Tanh()(gnn_out[:, :4])
+
         if self.loc_type == 'classifier_with_gnn':
             loc_params = self.loc_fn(gnn_out, edges, node_indices)
         else:
             loc_params = self.loc_fn(gnn_out)
+
+        if self.gnn_type == 'GPSModel_with_voting': 
+            loc_params = center_offset + loc_params
         #print(logits.shape, loc_params.shape)
-        loss, loss_stats = self.loss([logits, loc_params],[layer_rect, labels, bboxes])
+        loss, loss_stats = self.loss([logits, loc_params], [layer_rect, labels, bboxes])
         return self.process_output_data((logits, loc_params), layer_rect), loss, loss_stats
 
 if __name__=='__main__':

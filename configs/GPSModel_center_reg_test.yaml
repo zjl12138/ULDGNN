@@ -1,7 +1,7 @@
 gpus: [3]
 
 train:
-    lr: 1e-5
+    lr: 1e-4
     local_rank: 3
     save_best_acc: True
     is_distributed: False
@@ -32,14 +32,14 @@ network:
         class_num: 11
 
     img_embedder:
-        outdim: 128
+        out_dim: 128
         name: 'resnet50'
 
     reg_loss:
         weight: 1
 
     gnn_fn:
-      gnn_type: 'GPSModel'
+      gnn_type: 'GPSModel_with_voting'
       latent_dims: [128, 128, 128, 128, 128, 128, 128, 128, 128]
       num_heads: [4, 4, 4, 4, 4, 4, 4, 4, 4] 
       out_dim: 128

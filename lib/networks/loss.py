@@ -12,20 +12,20 @@ class FocalLoss(nn.Module):
         self.reduction = reduction
     
     def forward(self, input, target):
-        p = F.softmax(input,dim=1)
-        p = p[:,1]
+        p = F.softmax(input, dim = 1)
+        p = p[:, 1]
         target=target.float()
-        ce = F.binary_cross_entropy_with_logits(p,target)
-        p_t = p * target + (1-p)*(1-target)
-        loss = ce * ((1 - p_t)**self.gamma)
+        ce = F.binary_cross_entropy_with_logits(p, target)
+        p_t = p * target + (1 - p) * (1 - target)
+        loss = ce * ((1 - p_t) ** self.gamma)
         if self.alpha >= 0:
-            alpha_t = self.alpha * target + (1-self.alpha)*(1-target)
+            alpha_t = self.alpha * target + (1 - self.alpha) * (1 - target)
             loss = alpha_t * loss
         if self.reduction is None:
             pass
-        elif self.reduction=='mean':
+        elif self.reduction == 'mean':
             loss = loss.mean()
-        elif self.reduction=='sum':
+        elif self.reduction == 'sum':
             loss = loss.sum()
         return loss
 
@@ -57,7 +57,7 @@ def ciou_loss(box1, box2):
     b1_area = b1_wh[..., 0] * b1_wh[..., 1]
     b2_area = b2_wh[..., 0] * b2_wh[..., 1]
     union_area = b1_area + b2_area - intersect_area
-    iou = intersect_area / torch.clamp(union_area, min=1e-6)
+    iou = intersect_area / torch.clamp(union_area, min = 1e-6)
     # distance between centers
     center_distance = torch.sum(torch.pow((b1_xy - b2_xy), 2), -1)
     # dialog length
@@ -66,23 +66,23 @@ def ciou_loss(box1, box2):
     enclose_wh = torch.max(enclose_maxs - enclose_mins, torch.zeros_like(enclose_maxs))
     enclose_diagonal = torch.sum(torch.pow(enclose_wh, 2), -1)
 
-    v = 4 /(math.pi ** 2) * torch.pow(torch.atan(b1_wh[..., 0]/torch.clamp(b1_wh[..., 1], min=1e-6))-torch.atan(b2_wh[..., 0]/torch.clamp(b2_wh[..., 1], min=1e-6)), 2)
+    v = 4 /(math.pi ** 2) * torch.pow(torch.atan(b1_wh[..., 0]/torch.clamp(b1_wh[..., 1], min = 1e-6))-torch.atan(b2_wh[..., 0]/torch.clamp(b2_wh[..., 1], min=1e-6)), 2)
 
-    alpha = v / torch.clamp((1 - iou + v), min=1e-6)
-    ciou = 1 - iou + 1.0 * center_distance / torch.clamp(enclose_diagonal, min=1e-6) + alpha * v
+    alpha = v / torch.clamp((1 - iou + v), min = 1e-6)
+    ciou = 1 - iou + 1.0 * center_distance / torch.clamp(enclose_diagonal, min = 1e-6) + alpha * v
     return ciou	
 
 def make_classifier_loss(cfg):
-    if cfg.type=='focal_loss':
+    if cfg.type == 'focal_loss':
         return FocalLoss(cfg.alpha, cfg.gamma, cfg.reduction)
-    if cfg.type=='cross_entropy_loss':
+    if cfg.type == 'cross_entropy_loss':
         return torch.nn.CrossEntropyLoss()
 
 def make_regression_loss(cfg):
-    if cfg.type=='huber_loss':
+    if cfg.type == 'huber_loss':
         return torch.nn.HuberLoss(cfg.reduction, cfg.delta) 
-    elif cfg.type=='ciou_loss':
+    elif cfg.type == 'ciou_loss':
         return ciou_loss
-    elif cfg.type=='mse_loss':
+    elif cfg.type == 'mse_loss':
         return torch.nn.MSELoss()
    

@@ -59,7 +59,7 @@ class ImageEmbedder(nn.Module):
         cfg is ImageEmbedder cfgNode
         '''
         super(ImageEmbedder, self).__init__()
-        self.out_dim = cfg.outdim    
+        self.out_dim = cfg.out_dim    
         self.feature_extractor = getattr(importlib.import_module('torchvision.models'),cfg.name)(pretrained=True)
         for k, p in self.feature_extractor.named_parameters():
             if 'conv' in k or 'bn' in k or "downsample" in k:

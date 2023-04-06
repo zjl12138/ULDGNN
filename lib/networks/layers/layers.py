@@ -48,11 +48,11 @@ class GPSLayer(nn.Module):
                     local_gnn_type, 
                     global_model_type, 
                     num_heads, 
-                    act='relu',
-                    dropout=0.0, 
-                    attn_dropout=0.0, 
-                    layer_norm=False, 
-                    batch_norm=True,
+                    act =' relu',
+                    dropout = 0.0, 
+                    attn_dropout = 0.0, 
+                    layer_norm = False, 
+                    batch_norm = True,
                     ):
         super(GPSLayer, self).__init__()
         self.dim_h =  dim_h
@@ -70,16 +70,16 @@ class GPSLayer(nn.Module):
                                    self.activation,
                                    Linear_pyg(dim_h, dim_h))
             self.local_model = pygnn.GINConv(gin_nn)
-        elif local_gnn_type=='GATConv':
-            self.local_model = pygnn.GATConv(in_channels=dim_h,
-                                             out_channels=dim_h // num_heads,
-                                             heads=num_heads)
+        elif local_gnn_type == 'GATConv':
+            self.local_model = pygnn.GATConv(in_channels = dim_h,
+                                             out_channels = dim_h // num_heads,
+                                             heads = num_heads)
         
         if global_model_type =='None':
             self.self_attn = None
         elif global_model_type == 'Transformer':
             self.self_attn = torch.nn.MultiheadAttention(
-                dim_h, num_heads, dropout=self.attn_dropout, batch_first=True)
+                dim_h, num_heads, dropout=self.attn_dropout, batch_first = True)
 
         self.global_model_type = global_model_type
 
@@ -117,7 +117,7 @@ class GPSLayer(nn.Module):
             h_local = h_in1 + h_local
         assert(not (self.layer_norm and self.batch_norm) )
         if self.layer_norm:
-            h_local = self.norm1_local(h_local)
+            h_local = self.norm1_local(h_local, node_indices)
         if self.batch_norm:
             h_local = self.batch_norm(h_local)
         h_out_list.append(h_local)
@@ -135,6 +135,7 @@ class GPSLayer(nn.Module):
             h_out_list.append(h_attn)
         h = sum(h_out_list)
         h = h + self._ff_block(h)
+        h = self._ff_block(h)
         if self.layer_norm:
             h = self.norm2(h, node_indices)
         if self.batch_norm:
@@ -152,7 +153,7 @@ class GPSLayer(nn.Module):
         """Self-attention block.
         """
         x = self.self_attn(x, x, x,
-                               attn_mask=attn_mask,
-                               key_padding_mask=key_padding_mask,
-                               need_weights=False)[0]
+                               attn_mask = attn_mask,
+                               key_padding_mask = key_padding_mask,
+                               need_weights = False)[0]
         return x

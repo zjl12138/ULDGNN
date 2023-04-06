@@ -78,7 +78,7 @@ def train(cfg, network, begin_epoch=0):
                 
                 if cfg.train.save_best_acc:
                 
-                    if val_metric_stats['accuracy'] > best_acc:
+                    if val_metric_stats['accuracy'] >= best_acc:
                         print("model with best accuracy saving...")
                         best_epoch = epoch
                         best_acc = val_metric_stats['accuracy']
