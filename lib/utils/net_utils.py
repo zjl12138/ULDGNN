@@ -132,3 +132,9 @@ def load_partial_network(net, model_dir, resume=True, epoch=-1, strict=True):
             i = i + 1
     net.load_state_dict(model_dict)
     return 1
+
+def average_by_weight(attn_weights, gnn_out):
+    '''
+    attn_weights: 
+    '''
+    return attn_weights @ gnn_out

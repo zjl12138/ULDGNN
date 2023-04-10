@@ -147,6 +147,7 @@ class GPSModel(nn.Module):
         self.latent_dims = cfg.latent_dims
         self.num_heads = cfg.num_heads
         self.make(cfg)
+        self.attn_weights = 0
 
     def make(self, cfg):
         in_dim = cfg.in_dim
@@ -172,8 +173,13 @@ class GPSModel(nn.Module):
         #print(torch.max(edges))
         #print(x.shape)
         x_in = x
-        for _, gnn_layer in self.named_children():
-            x =  gnn_layer((x, edge_index, node_indices))
+        for idx, (_, gnn_layer) in enumerate(self.named_children()):
+            if idx != len(self.latent_dims) - 1:
+                x =  gnn_layer((x, edge_index, node_indices), False)
+            else:
+                x =  gnn_layer((x, edge_index, node_indices), True)
+                self.attn_weights = gnn_layer.attn_weights
+                assert(isinstance(self.attn_weights, torch.Tensor))
         return x
 
 class GPSModel_with_voting(nn.Module):
@@ -203,7 +209,7 @@ class GPSModel_with_voting(nn.Module):
             )
             in_dim = latent_dim
         
-    def forward(self, batch, edge_attr = None): # 
+    def forward(self, batch): # 
         x, edge_index, node_indices = batch
         #print(torch.max(edges))
         #print(x.shape)
@@ -211,8 +217,13 @@ class GPSModel_with_voting(nn.Module):
         #x = torch.cat((padding_zeros, x), dim = 1)
         for idx, (name, gnn_layer) in enumerate(self.named_children()):
             if 'GPS' in name:
-                x = gnn_layer((x, edge_index, node_indices), edge_attr = edge_attr)
-                padding_zeros = padding_zeros + self.offset_head(x)
+                if idx != len(self.latent_dims) - 1:
+                    x = gnn_layer((x, edge_index, node_indices), False)
+                else:
+                    x = gnn_layer((x, edge_index, node_indices), True)
+                    self.attn_weights = gnn_layer.attn_weights
+                    assert(isinstance(self.attn_weights, torch.Tensor))
+            padding_zeros = padding_zeros + self.offset_head(x)
         x = torch.cat((padding_zeros, x), dim = 1)
         del padding_zeros
         return x 
@@ -264,7 +275,9 @@ class GPSModel_with_voting_v(nn.Module):
 class Network(nn.Module):
     def __init__(self):
         super(Network, self).__init__()   
-        
+        self.use_attn_weight = cfg.use_attn_weight
+        if self.use_attn_weight:
+            print("use attn weight")
         cfg.gnn_fn.in_dim = cfg.pos_embedder.out_dim
         cfg.cls_fn.in_dim = cfg.gnn_fn.out_dim
         cfg.loc_fn.in_dim = cfg.gnn_fn.out_dim
@@ -313,14 +326,6 @@ class Network(nn.Module):
         for n, params in model.named_parameters():
             params.requires_grad = False
 
-    def open_network(self, model):
-        for n, params in model.named_parameters():
-            params.requires_grad = True
-
-    def change_to_mode(self, train_mode: str):
-        if train_mode == '1_to_0':
-            self.open_network(self.loc_fn)
-
     def process_output_data(self, output, layer_rects):
         logits, local_params = output
         if self.bbox_regression_type == 'center_regress':
@@ -331,8 +336,11 @@ class Network(nn.Module):
             #pred_bboxes.requires_grad = True
             #local_params[:, 0 : 2] = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2] - local_params[:, 2 : 4] * 0.5
         elif self.bbox_regression_type == 'offset_based_on_layer':
+            assert(self.gnn_fn.attn_weights.requires_grad == False)
             bboxes = local_params + layer_rects
             centroids = bboxes[:, 0 : 2] + 0.5 * bboxes[:, 2 : 4]
+            #centroids = self.gnn_fn.attn_weights @ centroids
+            #print(centroids)
 
         elif self.bbox_regression_type == 'voting':
             assert(local_params.shape[1] == 6)
@@ -340,12 +348,16 @@ class Network(nn.Module):
             anchor_bboxes = vote_clustering(centroids, layer_rects, radius = self.bbox_vote_radius)
             #anchor_bboxes = vote_clustering_each_layer(centroids, layer_rects, radius = self.bbox_vote_radius)
             bboxes = local_params[:, 2 : 6] + anchor_bboxes
-            
-        elif self.bbox_regression_type == 'step_voting':  #local_params[0:2]:offset, local_params[2:4]: wh
-            centroids = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2]
-            anchor_bboxes = vote_clustering(centroids, layer_rects, radius = self.bbox_vote_radius)
-            #anchor_bboxes = vote_clustering_each_layer(centroids, layer_rects, radius = self.bbox_vote_radius)
-            bboxes = local_params[:, 2 : 6] + anchor_bboxes
+        
+        elif self.bbox_regression_type == 'attn_average':
+            centroids = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5
+            centroids = self.gnn_fn.attn_weights @ centroids #+ 0.01 * local_params[:, 0 : 2]
+            #centroids = torch.mean(layer_rects[:, 0 : 2], dim  = 0)
+            #centroids = torch.zeros_like(layer_rects[:, 0 : 2], device =  layer_rects.get_device()) + centroids
+            wh = local_params[:, 2 : 4]
+            xy = centroids - wh * 0.5
+            bboxes = torch.cat((xy, wh), dim=1)
+
         else:
             raise(f"No such bbox regression type: {self.bbox_regression_type}")
         return (logits, centroids, bboxes)
@@ -373,7 +385,9 @@ class Network(nn.Module):
         #local_params = local_params + layer_rects'''
         bboxes = bboxes + layer_rects
         bboxes_center = bboxes[:, 0 : 2] + bboxes[:, 2 : 4] * 0.5
+        
         #print(local_params, bboxes)
+       
         reg_loss = reg_loss_fn(local_params, bboxes)
         center_reg_loss = huber_fn(bboxes_center, centroids)
     
@@ -395,19 +409,15 @@ class Network(nn.Module):
         #print(pos_embedding.shape, type_embedding.shape, img_embedding.shape)
         #batch_embedding = self.pos_embedder(layer_rect)+self.type_embedder(classes)+self.img_embedder(images)
         batch_embedding = pos_embedding + type_embedding + img_embedding
-        edge_attr = None
-        if cfg.gnn_fn.local_gnn_type == 'GINEConv':
-            
-            x_i = edges[0, :]
-            x_j = edges[1, :]
-            edge_attr = pos_embedding[x_i, :] - pos_embedding[x_j, :] + img_embedding[x_i, :] - img_embedding[x_j, :]
-
-        gnn_out = self.gnn_fn((batch_embedding, edges, node_indices), edge_attr)
+        gnn_out = self.gnn_fn((batch_embedding, edges, node_indices))
         logits = self.cls_fn(gnn_out)
 
         if self.gnn_type == 'GPSModel_with_voting':
             gnn_out = gnn_out[:, 4:]
             center_offset = gnn_out[:, :4] 
+
+        if self.use_attn_weight:
+            gnn_out = self.gnn_fn.attn_weights @ gnn_out
 
         if self.loc_type == 'classifier_with_gnn':
             loc_params = self.loc_fn(gnn_out, edges, node_indices)

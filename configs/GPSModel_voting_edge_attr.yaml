@@ -1,28 +1,30 @@
-gpus: [3]
+gpus: [0, 1, 2, 3]
 
 train:
-    lr: 1e-5
-    local_rank: 3
+    lr: 1e-4
+    local_rank: 0
     save_best_acc: True
-    is_distributed: False
+    is_distributed: True
     eval_ep: 10
     batch_size: 6
 
 train_dataset:
-    index_json: 'index_tmp.json'
+    index_json: 'index_train.json'
 
 test_dataset:
-    index_json: 'index_tmp.json'
+    index_json: 'index_test.json'
 
 test:
-    vis_bbox: True
+    vis_bbox: False
     val_nms: False
 
 network:
-    #bbox_regression_type: 'voting'
+    use_attn_weight: False
+    #bbox_regression_type: 'step_voting'
     bbox_vote_radius: 0.001
     #bbox_regression_type: 'center_regress'
     bbox_regression_type:  'offset_based_on_layer'
+    #bbox_regression_type: 'attn_average'
     pos_embedder:
         multires: 9
         out_dim: 128
@@ -43,14 +45,13 @@ network:
       latent_dims: [128, 128, 128, 128, 128, 128, 128, 128, 128]
       num_heads: [4, 4, 4, 4, 4, 4, 4, 4, 4] 
       out_dim: 128
-      local_gnn_type: 'GINConv'
+      local_gnn_type: 'GINEConv'
       global_model_type: 'Transformer'
       act_fn: 'relu'
       dropout: 0.0
       attn_dropout: 0.2
       layer_norm: True
       batch_norm: False
-
     loc_fn: 
       loc_type: 'classifier'
       gnn_latent_dims: [128, 128, 128]

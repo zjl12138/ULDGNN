@@ -42,6 +42,9 @@ if __name__=='__main__':
         #network(batch)
         #vis.visualize(nodes, bboxes, file_list[0])
     '''
+    #cfg.test.vis_bbox = True
+    cfg.train.is_distributed = False
+    cfg.train.local_rank = 3
     network = make_network(cfg.network)
     begin_epoch = load_network(network, cfg.model_dir)
     print("begin epoch: ", begin_epoch)

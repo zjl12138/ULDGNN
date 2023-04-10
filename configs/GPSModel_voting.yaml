@@ -1,7 +1,7 @@
-gpus: [0, 1, 2]
+gpus: [0, 1, 2, 3]
 
 train:
-    lr: 1e-4
+    lr: 5e-5
     local_rank: 0
     save_best_acc: True
     is_distributed: True
@@ -19,10 +19,12 @@ test:
     val_nms: False
 
 network:
+    use_attn_weight: False
     #bbox_regression_type: 'step_voting'
     bbox_vote_radius: 0.001
     #bbox_regression_type: 'center_regress'
     bbox_regression_type:  'offset_based_on_layer'
+    #bbox_regression_type: 'attn_average'
     pos_embedder:
         multires: 9
         out_dim: 128

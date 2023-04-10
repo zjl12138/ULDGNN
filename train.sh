@@ -1,0 +1,2 @@
+nohup python -m torch.distributed.launch --nproc_per_node=4 train.py --exp_name=dataset_rerefine_gps_mode_GIN_train_mode_0_step_voting_edge_attr --train_mode=1 --cfg_file=configs/GPSModel_voting_edge_attr.yaml --epochs=20 --lr=0.0001
+nohup python -m torch.distributed.launch --nproc_per_node=4 train.py --exp_name=dataset_rerefine_gps_mode_GIN_train_mode_0_step_voting_edge_attr --train_mode=0 --cfg_file=configs/GPSModel_voting_edge_attr.yaml --epochs=1000 --lr=0.00001

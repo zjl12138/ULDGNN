@@ -22,7 +22,7 @@ if __name__=='__main__':
     negatives = 0
     for batch in tqdm(dataloader):
         #network(batch)
-        nodes, edges, types,  img_tensor, labels, bboxes, node_indices, file_list  = batch
+        nodes, edges, types, img_tensor, labels, bboxes, node_indices, file_list  = batch
         #print(node_indices)
         positives += torch.sum(labels)
         negatives += labels.shape[0]-torch.sum(labels)

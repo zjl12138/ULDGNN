@@ -47,7 +47,7 @@ cfg.train.save_best_acc=True
 cfg.train.save_ep = 10
 cfg.train.eval_ep = 10
 cfg.train.vis_ep = 1000
-cfg.train.epoch = 100000
+cfg.train.epoch = 10000
 cfg.train.lr = 7e-5
 cfg.train.weight_decay = 1e-5
 cfg.train.optim = 'adamw'
@@ -68,6 +68,7 @@ cfg.test.vis_bbox = True
 cfg.test.val_nms = False
 
 cfg.network = CN()
+cfg.network.use_attn_weight = False
 cfg.network.train_mode = 0  # mode 0: train two branches together, 1: only train cls branch, 2:only train loc branch
 cfg.network.bbox_regression_type = 'voting'
 cfg.network.network_module = 'lib.networks.network'
@@ -121,6 +122,8 @@ cfg.network.reg_loss.type = 'ciou_loss'
 cfg.network.reg_loss.reduction = 'mean'
 cfg.network.reg_loss.delta = 0.5
 cfg.network.reg_loss.weight = 10
+cfg.network.center_reg_loss = CN()
+cfg.network.center_reg_loss.weight = 1.0
 
 def make_cfg(args):
     cfg.config_file = args.cfg_file
@@ -142,7 +145,7 @@ def make_cfg(args):
             cfg.network.loc_fn.classes = 4
         else:
             cfg.network.loc_fn.classes = 2'''
-    if cfg.network.bbox_regression_type == 'voting':
+    if 'voting' in cfg.network.bbox_regression_type:
         cfg.network.loc_fn.classes = 6
     
     if cfg.train.is_distributed:
@@ -153,6 +156,8 @@ def make_cfg(args):
     cfg.model_dir=os.path.join(cfg.outDir, cfg.exp_name,"checkpoints")
     cfg.config_dir = os.path.join(cfg.outDir, cfg.exp_name,"configs")
     cfg.train.local_rank = args.local_rank
+    cfg.train.epoch = args.epochs
+    cfg.train.lr = args.lr
     print(cfg.model_dir)
     os.makedirs(cfg.recorder.record_dir, exist_ok=True)
     os.makedirs(cfg.visualizer.vis_dir, exist_ok=True)
@@ -165,6 +170,8 @@ parser.add_argument("--cfg_file", default = "configs/default.yaml", type=str)
 parser.add_argument("--exp_name", type=str)
 parser.add_argument('--train_mode', type=int, default=0)
 parser.add_argument('--local_rank', type=int, default=3)
+parser.add_argument("--epochs", default = 1000, type = int)
+parser.add_argument("--lr", type=float, default = 1e-4)
 parser.add_argument("opts", default=None, nargs=argparse.REMAINDER)
 
 args = parser.parse_args()

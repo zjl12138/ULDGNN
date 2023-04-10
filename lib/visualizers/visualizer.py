@@ -4,11 +4,20 @@ import torch.nn.functional as F
 import os
 from lib.utils import nms_merge
 
+def clip_val(x, lower, upper):
+    x = x if x >= lower else lower
+    x = x if x <= upper else upper
+    return x
+
 class visualizer:
     def __init__(self, vis_cfg):
         self.vis_dir = vis_cfg.vis_dir
 
     def scale_to_img(self, x, H, W):
+        x[0] = clip_val(x[0], 0, 1)
+        x[1] = clip_val(x[1], 0, 1)
+        x[2] = clip_val(x[2], 0, 1)
+        x[3] = clip_val(x[3], 0, 1)
         return (int(x[0] * W), int(x[1] * H), int(x[2] * W), int(x[3] * H))
         #return ((x[0] * W), (x[1] * H), (x[2] * W), (x[3] * H))
     
