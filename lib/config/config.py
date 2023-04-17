@@ -68,6 +68,7 @@ cfg.test.vis_bbox = True
 cfg.test.val_nms = False
 
 cfg.network = CN()
+cfg.network.confidence_weight = 5.0
 cfg.network.use_attn_weight = False
 cfg.network.train_mode = 0  # mode 0: train two branches together, 1: only train cls branch, 2:only train loc branch
 cfg.network.bbox_regression_type = 'voting'
@@ -123,7 +124,7 @@ cfg.network.reg_loss.reduction = 'mean'
 cfg.network.reg_loss.delta = 0.5
 cfg.network.reg_loss.weight = 10
 cfg.network.center_reg_loss = CN()
-cfg.network.center_reg_loss.weight = 1.0
+cfg.network.center_reg_loss.weight = 10.0
 
 def make_cfg(args):
     cfg.config_file = args.cfg_file

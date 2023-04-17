@@ -65,37 +65,44 @@ def IoU(box1, box2):
     iou = intersect_area / torch.clamp(union_area, min=1e-6)
     return iou
 
-def nms_merge(bboxes:torch.Tensor, scores:torch.Tensor, threshold=0.45):
+def nms_merge(bboxes:torch.Tensor, scores:torch.Tensor, threshold=0.4):
     '''
     bboxes: [N, 4] (x, y, w, h)
     scores: [N, 1]
     '''
     bbox_results = []
     sort_idx = torch.argsort(scores, dim = 0, descending = True)
+    confidence = scores[sort_idx].unsqueeze(1)
     bboxes = bboxes[sort_idx] 
     sum = 0
+    confidence_results = []
     while bboxes.shape[0] != 0:
         single_box = bboxes[0, :]
         if bboxes.shape[0] == 1:
             sum += 1
             bbox_results.append(bboxes[0, :])
+            confidence_results.append(confidence[0])
             break
         bbox_list = bboxes[1:, :]
+        confidence_list = confidence[1:]
         #print(single_box.shape, bboxes[1:,:].shape)
         ious = IoU(single_box, bbox_list)
        
-        overlapped = (ious > threshold)
+        overlapped = (ious >= threshold)
         overlapped_bboxes = bbox_list[overlapped, :]
+        overlapped_bboxes_confidence = confidence_list[overlapped, :]
         sum  += overlapped_bboxes.shape[0] + 1
-        merged_bboxes = torch.cat((single_box[None, ...], overlapped_bboxes), dim=0)
+        merged_bboxes = torch.cat((single_box[None, ...], overlapped_bboxes), dim = 0)
         final_bbox, _ = torch.median(merged_bboxes, dim=0)
-        
+        merged_confidence = torch.cat((confidence[0:1, :], overlapped_bboxes_confidence), dim = 0)
+        confidence_results.append(torch.mean(merged_confidence))
         #final_bbox[2:4] = final_bbox[2:4] - final_bbox[0:2]
         
         bbox_results.append(final_bbox)
         bboxes = bbox_list[~overlapped, :]
+        confidence = confidence_list[~overlapped]
    
-    return bbox_results
+    return bbox_results, confidence_results
 
 def get_the_bbox_of_cluster(bboxes):
     '''

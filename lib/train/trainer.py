@@ -64,7 +64,7 @@ class Trainer(object):
             loss_stats = self.reduce_loss_stats(loss_stats)
             recorder.update_loss_stats(loss_stats)
 
-            logits, _, _ = output #output: (logits, centers, bboxes)
+            logits, _, _, _ = output #output: (logits, centers, bboxes, confidence)
 
             _, pred = torch.max(F.softmax(logits,dim=1), 1)
 
@@ -92,8 +92,8 @@ class Trainer(object):
                 recorder.record('train')
     
     def process_output_data(self, output, layer_rects_gt, labels, bboxes_gt):
-        logits, centers, local_params = output #output: (logits, centers, bboxes)
-        scores, pred = torch.max(F.softmax(logits, dim = 1), 1)
+        logits, centers, local_params, confidence = output #output: (logits, centers, bboxes)
+        cls_scores, pred = torch.max(F.softmax(logits, dim = 1), 1)
 
         fragmented_layers_gt = layer_rects_gt[labels == 1]
         fragmented_layers_pred = layer_rects_gt[pred == 1]
@@ -102,8 +102,14 @@ class Trainer(object):
         scores = scores[labels == 1]
         '''
         merging_groups_pred = local_params[pred == 1] 
-        scores = scores[pred == 1]
-        merging_groups_pred_nms = nms_merge(merging_groups_pred, scores, threshold=0.45)
+        
+        if confidence is None:
+            scores = cls_scores[pred == 1]
+            merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred, scores, threshold=0.45)
+
+        else:
+            scores = confidence[pred == 1]
+            merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred[scores >= 0.5], scores[scores >= 0.5], threshold=0.4)
 
         merging_groups_gt = bboxes_gt[labels == 1] + fragmented_layers_gt
     
@@ -114,7 +120,8 @@ class Trainer(object):
                 'merging_groups_pred': merging_groups_pred,
                 'merging_groups_pred_nms': merging_groups_pred_nms,
                 'label_pred': pred,
-                'centers_pred': centers[pred==1, :]
+                'centers_pred': centers[pred==1, :],
+                'merging_groups_confidence': merging_groups_confidence
                }
 
     def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False):
@@ -150,7 +157,8 @@ class Trainer(object):
                 merging_groups_gt = fetch_data['merging_groups_gt']
                 merging_groups_pred = fetch_data['merging_groups_pred']
                 merging_groups_pred_nms = fetch_data['merging_groups_pred_nms']
-                
+                merging_groups_confidence = fetch_data['merging_groups_confidence']
+
                 label_pred = fetch_data['label_pred']
                 
                 centers_pred = fetch_data['centers_pred']
@@ -164,7 +172,8 @@ class Trainer(object):
 
                 if visualizer is not None:
                     visualizer.visualize_pred(fragmented_layers_pred, merging_groups_pred, batch[7][0])
-                    visualizer.visualize_nms(merging_groups_pred_nms, batch[7][0])
+                    #visualizer.visualize_nms(merging_groups_pred_nms, batch[7][0])
+                    visualizer.visualize_nms_with_labels(merging_groups_pred_nms, merging_groups_confidence, batch[7][0])
                     visualizer.visualize_gt(fragmented_layers_gt, merging_groups_gt, batch[7][0])
                     visualizer.visualize_offset_of_centers(centers_pred, fragmented_layers_pred, batch[7][0])
                     

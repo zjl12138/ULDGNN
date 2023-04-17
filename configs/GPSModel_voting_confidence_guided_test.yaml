@@ -1,23 +1,23 @@
-gpus: [0, 1, 2, 3]
+gpus: [3]
 
 train:
     lr: 5e-5
-    local_rank: 0
+    local_rank: 3
     save_best_acc: True
-    is_distributed: True
+    is_distributed: False
     eval_ep: 10
     batch_size: 6
 
 train_dataset:
-    rootDir: '../../dataset/graph_dataset_rerefine_large_graph'
-    index_json: 'index_train.json'
+    rootDir : '../../dataset/graph_dataset_rerefine'
+    index_json: 'index_tmp.json'
 
 test_dataset:
-    rootDir: '../../dataset/graph_dataset_rerefine_large_graph'
-    index_json: 'index_test.json'
+    rootDir : '../../dataset/graph_dataset_rerefine'
+    index_json: 'index_tmp.json'
 
 test:
-    vis_bbox: False
+    vis_bbox: True
     val_nms: False
 
 network:
@@ -55,6 +55,7 @@ network:
       layer_norm: True
       batch_norm: False
     loc_fn: 
+      classes: 4
       loc_type: 'classifier'
       gnn_latent_dims: [128, 128, 128]
       num_heads: [4, 4, 4] 

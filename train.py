@@ -28,7 +28,7 @@ def synchronize():
         return
     dist.barrier()
 
-def train(cfg, network, begin_epoch=0):
+def train(cfg, network, begin_epoch = 0):
     trainer = make_trainer(network)
     optimizer = make_optimizer(cfg, network)
     scheduler = make_scheduler(cfg, optimizer)

@@ -26,7 +26,7 @@ class PosEmbedder_impl:
                 out_dim += d
         self.embed_fns = embed_fns
         self.out_dim = out_dim
-
+    
     def embed(self, inputs):
         return torch.cat([fn(inputs) for fn in self.embed_fns],-1)
 
@@ -48,8 +48,11 @@ class PosEmbedder(nn.Module):
         super(PosEmbedder, self).__init__()
         self.embed, in_dim = GetPosEmbedder(cfg.multires)
         self.fc_layer = nn.Linear(in_dim, cfg.out_dim)
+        self.pos_enc = None
+
     def forward(self, x):
         x = self.embed(x)
+        self.pos_enc = x
         #print("embedding dim:",x.shape)
         return self.fc_layer(x)
     

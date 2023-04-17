@@ -66,7 +66,7 @@ def ciou_loss(box1, box2):
     enclose_wh = torch.max(enclose_maxs - enclose_mins, torch.zeros_like(enclose_maxs))
     enclose_diagonal = torch.sum(torch.pow(enclose_wh, 2), -1)
 
-    v = 4 /(math.pi ** 2) * torch.pow(torch.atan(b1_wh[..., 0]/torch.clamp(b1_wh[..., 1], min = 1e-6))-torch.atan(b2_wh[..., 0]/torch.clamp(b2_wh[..., 1], min=1e-6)), 2)
+    v = 4 / (math.pi ** 2) * torch.pow(torch.atan(b1_wh[..., 0] / torch.clamp(b1_wh[..., 1], min = 1e-6)) - torch.atan(b2_wh[..., 0] / torch.clamp(b2_wh[..., 1], min = 1e-6)), 2)
 
     alpha = v / torch.clamp((1 - iou + v), min = 1e-6)
     ciou = 1 - iou + 1.0 * center_distance / torch.clamp(enclose_diagonal, min = 1e-6) + alpha * v

@@ -73,6 +73,37 @@ class visualizer:
         for bbox in bbox_results:
             cv2.rectangle(img_1, self.scale_to_img(bbox, H, W), (0, 255, 0), 1)
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-group_nms.png'), img_1)
+
+    def draw_label_type(self, image, bbox, label):
+        
+        labelSize = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+        #if bbox[1] - labelSize
+        x, y, w, h = bbox
+        color = (0, 255, 0) # 绿色
+        thickness = 1
+        cv2.rectangle(image, (x, y), (x + w, y + h), color, thickness)
+        
+        # 添加目标类别和置信度等信息
+        font_scale = 0.25
+        font_thickness = 1
+        (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness)
+        text_origin = (x, y - int(label_h))
+        cv2.rectangle(image, (text_origin[0], text_origin[1] - label_h),
+                    (text_origin[0] + label_w, text_origin[1] + int(0.5 * label_h)), color, -1)
+        cv2.putText(image, label, text_origin, cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), font_thickness)
+        
+    def visualize_nms_with_labels(self,  bbox_results:torch.Tensor, confidence:torch.Tensor, img_path):
+        img_1 = cv2.imread(img_path)
+        origin_img = img_1
+        file_path, artboard_name = os.path.split(img_path)
+        artboard_name = artboard_name.split(".")[0]
+        H, W, _ = img_1.shape
+      
+        for bbox, confid in zip(bbox_results, confidence):
+            self.draw_label_type(img_1, self.scale_to_img(bbox, H, W), '{:.2f}'.format(confid.item()))
+            #cv2.rectangle(img_1, self.scale_to_img(bbox, H, W), (0, 255, 0), 1)
+        out_img = cv2.addWeighted(origin_img, 0.8, img_1, 0.2, 0)
+        cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-group_nms.png'), out_img)
     
     def visualize_offset_of_centers(self, centers: torch.Tensor, layer_rects: torch.Tensor, img_path):
         layer_center = layer_rects[:, 0:2] + 0.5 * layer_rects[:, 2:4]

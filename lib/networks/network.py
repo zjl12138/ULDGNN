@@ -8,7 +8,8 @@ from lib.networks.loss import make_classifier_loss, make_regression_loss
 from lib.config import cfg as CFG
 import importlib
 import torch.nn.functional as F
-from lib.utils import vote_clustering, vote_clustering_each_layer
+from lib.utils import vote_clustering, vote_clustering_each_layer, IoU
+
 cfg = CFG.network
 
 def make_gnn(gnn_type):
@@ -203,7 +204,7 @@ class GPSModel_with_voting(nn.Module):
             )
             in_dim = latent_dim
         
-    def forward(self, batch, edge_attr = None): # 
+    def forward(self, batch, edge_attr = None, pos_enc = None): # 
         x, edge_index, node_indices = batch
         #print(torch.max(edges))
         #print(x.shape)
@@ -211,7 +212,7 @@ class GPSModel_with_voting(nn.Module):
         #x = torch.cat((padding_zeros, x), dim = 1)
         for idx, (name, gnn_layer) in enumerate(self.named_children()):
             if 'GPS' in name:
-                x = gnn_layer((x, edge_index, node_indices), edge_attr = edge_attr)
+                x = gnn_layer((x, edge_index, node_indices), edge_attr = edge_attr, pos_enc = pos_enc)
                 padding_zeros = padding_zeros + self.offset_head(x)
         x = torch.cat((padding_zeros, x), dim = 1)
         del padding_zeros
@@ -322,7 +323,7 @@ class Network(nn.Module):
             self.open_network(self.loc_fn)
 
     def process_output_data(self, output, layer_rects):
-        logits, local_params = output
+        logits, local_params, confidence = output
         if self.bbox_regression_type == 'center_regress':
             xy = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2] - local_params[:, 2 : 4] * 0.5
             wh = local_params[:, 2 : 4]
@@ -346,14 +347,15 @@ class Network(nn.Module):
             anchor_bboxes = vote_clustering(centroids, layer_rects, radius = self.bbox_vote_radius)
             #anchor_bboxes = vote_clustering_each_layer(centroids, layer_rects, radius = self.bbox_vote_radius)
             bboxes = local_params[:, 2 : 6] + anchor_bboxes
+
         else:
             raise(f"No such bbox regression type: {self.bbox_regression_type}")
-        return (logits, centroids, bboxes)
+        return (logits, centroids, bboxes, torch.nn.Sigmoid()(confidence) if confidence is not None else None)
 
     def loss(self, output, gt):
         
         layer_rects, labels, bboxes = gt
-        logits, centroids, local_params = self.process_output_data(output, layer_rects)
+        logits, centroids, local_params, confidence = self.process_output_data(output, layer_rects)
 
         cls_loss_fn = make_classifier_loss(cfg.cls_loss)
         reg_loss_fn = make_regression_loss(cfg.reg_loss)
@@ -370,18 +372,30 @@ class Network(nn.Module):
             bboxes = bboxes[training_mask]
             layer_rects = layer_rects[training_mask]
             centroids = centroids[training_mask]
+            if confidence is not None:
+                confidence = confidence[training_mask]
         #local_params = local_params + layer_rects'''
         bboxes = bboxes + layer_rects
         bboxes_center = bboxes[:, 0 : 2] + bboxes[:, 2 : 4] * 0.5
         #print(local_params, bboxes)
-        reg_loss = reg_loss_fn(local_params, bboxes)
-        center_reg_loss = huber_fn(bboxes_center, centroids)
-    
+
+        loss =  cfg.cls_loss.weight * cls_loss
+        reg_loss = reg_loss_fn(local_params, bboxes)  #reg is short for regression
+        
+        if confidence is not None:
+            confidence_gt = IoU(bboxes, local_params)
+            confidence_loss = cfg.confidence_weight * huber_fn(confidence_gt.detach(), confidence)
+            loss_stats['confidence_loss'] = 1000 * confidence_loss
+            center_reg_loss = torch.sum(torch.abs(bboxes_center - centroids), dim = 1)
+            loss = loss + confidence_loss + cfg.reg_loss.weight * (1 - confidence_gt) * reg_loss + \
+                        cfg.center_reg_loss.weight * (1 - confidence_gt) * center_reg_loss
+        else:
+            center_reg_loss = huber_fn(bboxes_center, centroids)
+            loss =  loss + cfg.reg_loss.weight * reg_loss + cfg.center_reg_loss.weight * center_reg_loss
+
         loss_stats['cls_loss'] = cls_loss
         loss_stats['reg_loss'] = reg_loss
         loss_stats['center_reg_loss'] = 1000 * center_reg_loss
-        loss =  cfg.cls_loss.weight * cls_loss \
-                    + cfg.reg_loss.weight * reg_loss + cfg.center_reg_loss.weight * center_reg_loss
         #loss = 10 * center_reg_loss + cfg.cls_loss.weight * cls_loss
         loss_stats['loss'] =  loss
         return loss, loss_stats
@@ -395,15 +409,17 @@ class Network(nn.Module):
         #print(pos_embedding.shape, type_embedding.shape, img_embedding.shape)
         #batch_embedding = self.pos_embedder(layer_rect)+self.type_embedder(classes)+self.img_embedder(images)
         batch_embedding = pos_embedding + type_embedding + img_embedding
+        #batch_embedding = type_embedding + img_embedding
+
         edge_attr = None
         if cfg.gnn_fn.local_gnn_type == 'GINEConv':
-            
             x_i = edges[0, :]
             x_j = edges[1, :]
             edge_attr = pos_embedding[x_i, :] - pos_embedding[x_j, :] + img_embedding[x_i, :] - img_embedding[x_j, :]
 
-        gnn_out = self.gnn_fn((batch_embedding, edges, node_indices), edge_attr)
+        gnn_out = self.gnn_fn((batch_embedding, edges, node_indices), edge_attr, self.pos_embedder.pos_enc)
         logits = self.cls_fn(gnn_out)
+        confidence = None
 
         if self.gnn_type == 'GPSModel_with_voting':
             gnn_out = gnn_out[:, 4:]
@@ -411,14 +427,19 @@ class Network(nn.Module):
 
         if self.loc_type == 'classifier_with_gnn':
             loc_params = self.loc_fn(gnn_out, edges, node_indices)
+        elif self.loc_type == 'classifier_with_confidence':
+            out = self.loc_fn(gnn_out)
+            assert(out.size(-1) == 5)
+            loc_params = out[:, :4]
+            confidence = out[:, 4]
         else:
             loc_params = self.loc_fn(gnn_out)
 
         if self.gnn_type == 'GPSModel_with_voting': 
             loc_params = center_offset + loc_params
         #print(logits.shape, loc_params.shape)
-        loss, loss_stats = self.loss([logits, loc_params], [layer_rect, labels, bboxes])
-        return self.process_output_data((logits, loc_params), layer_rect), loss, loss_stats
+        loss, loss_stats = self.loss([logits, loc_params, confidence], [layer_rect, labels, bboxes])
+        return self.process_output_data((logits, loc_params, confidence), layer_rect), loss, loss_stats
 
 if __name__=='__main__':
     network = Network()

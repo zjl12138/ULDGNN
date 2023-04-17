@@ -9,11 +9,11 @@ train:
     batch_size: 6
 
 train_dataset:
-    rootDir: '../../dataset/graph_dataset_rerefine_large_graph'
+    rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
     index_json: 'index_train.json'
 
 test_dataset:
-    rootDir: '../../dataset/graph_dataset_rerefine_large_graph'
+    rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
     index_json: 'index_test.json'
 
 test:
@@ -21,6 +21,7 @@ test:
     val_nms: False
 
 network:
+    confidence_weight: 1.0
     use_attn_weight: False
     #bbox_regression_type: 'step_voting'
     bbox_vote_radius: 0.001
@@ -48,14 +49,15 @@ network:
       num_heads: [4, 4, 4, 4, 4, 4, 4, 4, 4] 
       out_dim: 128
       local_gnn_type: 'GINConv'
-      global_model_type: 'Transformer'
+      global_model_type: 'MultheadAttention_with_bias'
       act_fn: 'relu'
       dropout: 0.0
       attn_dropout: 0.2
       layer_norm: True
       batch_norm: False
     loc_fn: 
-      loc_type: 'classifier'
+      classes: 5
+      loc_type: 'classifier_with_confidence'
       gnn_latent_dims: [128, 128, 128]
       num_heads: [4, 4, 4] 
       out_dim: 128

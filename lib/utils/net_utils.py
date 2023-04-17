@@ -120,7 +120,8 @@ def load_partial_network(net, model_dir, resume=True, epoch=-1, strict=True):
         model_path = model_dir
 
     print('load model: {}'.format(model_path))
-    pretrained_model = torch.load(model_path)['net']
+    save_dict = torch.load(model_path)
+    pretrained_model = save_dict['net']
     model_dict = net.state_dict()
     keys = []
     for k, v in pretrained_model.items():
@@ -131,7 +132,7 @@ def load_partial_network(net, model_dir, resume=True, epoch=-1, strict=True):
             model_dict[k] = pretrained_model[keys[i]]
             i = i + 1
     net.load_state_dict(model_dict)
-    return 1
+    return save_dict['epoch'] + 1
 
 def average_by_weight(attn_weights, gnn_out):
     '''
