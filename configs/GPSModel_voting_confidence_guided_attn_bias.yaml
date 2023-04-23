@@ -6,14 +6,16 @@ train:
     save_best_acc: True
     is_distributed: True
     eval_ep: 10
-    batch_size: 6
+    batch_size: 4
 
 train_dataset:
-    rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
+    #rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
+    rootDir: '../../dataset/graph_dataset_rerefine'
     index_json: 'index_train.json'
 
 test_dataset:
-    rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
+    #rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
+    rootDir: '../../dataset/graph_dataset_rerefine'
     index_json: 'index_test.json'
 
 test:
@@ -21,7 +23,7 @@ test:
     val_nms: False
 
 network:
-    confidence_weight: 1.0
+    confidence_weight: 5.0
     use_attn_weight: False
     #bbox_regression_type: 'step_voting'
     bbox_vote_radius: 0.001
@@ -40,15 +42,21 @@ network:
         out_dim: 128
         name: 'resnet50'
 
-    reg_loss:
-        weight: 1
+    center_reg_loss:
+        weight: 5.0
 
+    reg_loss:
+        weight: 10
+
+    cls_loss:
+        weight: 1
+        
     gnn_fn:
       gnn_type: 'GPSModel_with_voting'
       latent_dims: [128, 128, 128, 128, 128, 128, 128, 128, 128]
       num_heads: [4, 4, 4, 4, 4, 4, 4, 4, 4] 
       out_dim: 128
-      local_gnn_type: 'GINConv'
+      local_gnn_type: 'GINEConv'
       global_model_type: 'MultheadAttention_with_bias'
       act_fn: 'relu'
       dropout: 0.0

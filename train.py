@@ -63,7 +63,10 @@ def train(cfg, network, begin_epoch = 0):
 
     for epoch in range(begin_epoch, cfg.train.epoch):
         #trainer.val(epoch, val_loader, evaluator, recorder, None)
-
+        if cfg.train.begin_update_edge_attr_epoch >= 0 and epoch == cfg.train.begin_update_edge_attr_epoch:
+            print("start updating edge_attr!")
+            network.begin_update_edge_attr()
+            
         recorder.epoch = epoch
         if cfg.train.is_distributed:
             train_loader.batch_sampler.sampler.set_epoch(epoch)
@@ -72,6 +75,7 @@ def train(cfg, network, begin_epoch = 0):
         #if (epoch+1) % cfg.train.save_ep == 0:
         #    save_model(network, optimizer,scheduler, recorder, cfg.model_dir,
         #               epoch, True)
+        
         if (epoch+1) % cfg.train.eval_ep == 0:
             if (not cfg.train.is_distributed)  or (cfg.train.local_rank == 0):
                 val_metric_stats = trainer.val(epoch, val_loader, evaluator, recorder, vis if cfg.test.vis_bbox else None, False)

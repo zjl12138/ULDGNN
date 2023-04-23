@@ -44,9 +44,10 @@ if __name__=='__main__':
     '''
     #cfg.test.vis_bbox = True
     cfg.train.is_distributed = False
-    cfg.train.local_rank = 3
+    cfg.train.local_rank = 2
     cfg.test.vis_bbox = True
     network = make_network(cfg.network)
     begin_epoch = load_network(network, cfg.model_dir)
+    network.begin_update_edge_attr()
     print("begin epoch: ", begin_epoch)
     test(cfg, network)

@@ -1,3 +1,5 @@
+from dis import dis
+from cmath import isnan
 from turtle import pos
 from torch.nn import Linear
 from typing import List
@@ -220,6 +222,7 @@ class GPSLayer(nn.Module):
                     attn_dropout = 0.0, 
                     layer_norm = False, 
                     batch_norm = True,
+                    edge_dim  = 0
                     ):
         super(GPSLayer, self).__init__()
         self.dim_h =  dim_h
@@ -230,7 +233,7 @@ class GPSLayer(nn.Module):
         self.activation = torch.nn.ReLU() if act=='relu' else torch.nn.LeakyReLU()
         self.attn_weights = 0
         self.local_gnn_type = local_gnn_type
-
+        print("local gnn_type: ",local_gnn_type)
         if local_gnn_type == 'None':
             self.local_model = None
         
@@ -244,7 +247,12 @@ class GPSLayer(nn.Module):
             gin_nn = nn.Sequential(Linear_pyg(dim_h, dim_h),
                                    self.activation,
                                    Linear_pyg(dim_h, dim_h))
-            self.local_model = pygnn.GINEConv(gin_nn)
+            #assert(edge_dim is not None)
+            if edge_dim != 0:
+                print("Encoding edge_attr!")
+            else:
+                print("Not encoding edge_attr!")
+            self.local_model = pygnn.GINEConv(gin_nn, edge_dim = edge_dim if edge_dim else None)
 
         elif local_gnn_type == 'GATConv':
             self.local_model = pygnn.GATConv(in_channels = dim_h,
@@ -298,14 +306,30 @@ class GPSLayer(nn.Module):
         #print(attn_weights)
         return attn_weights
 
-    def get_attn_weight_bias(self, pos_enc: torch.Tensor):
-        '''
-        pos_enc: [batchsize, seq_len, dim]
-        '''
+    '''def get_attn_weight_bias(self, pos_enc: torch.Tensor):
+    
         batchsize, seq_len, dim = pos_enc.size()
         pos_enc = pos_enc.reshape(batchsize, self.num_heads, seq_len, dim // self.num_heads)
         pos_enc = normalize(pos_enc, p = 2, dim = -1)
         return torch.einsum('bijl, bilk -> bijk', pos_enc, pos_enc.transpose(3, 2))
+    '''
+    def get_attn_weight_bias(self, pos_enc: torch.Tensor):
+        batchsize, seq_len, dim = pos_enc.size()
+        #print(pos_enc[0])
+        '''a_2 = torch.sum(torch.square(pos_enc), dim = 2, keepdim = True)
+        b_2 = torch.sum(torch.square(pos_enc), dim = 2).unsqueeze(1)
+        ab = torch.einsum('ijl, ilk -> ijk', pos_enc, pos_enc.transpose(2, 1).contiguous())
+        dists = a_2 + b_2 - 2 * ab
+        attn_bias = torch.sqrt(dists + 1e-24)  # [bsize, seq_len, seq_len]
+        attn_bias = 2 + 1e-12 - attn_bias[:, None, ...].repeat(1, self.num_heads, 1, 1)
+        assert(torch.sum(attn_bias < 0).item() < 1e-12)'''
+       
+        tmp_list = []
+        for i in range(seq_len):
+            tmp_list.append(torch.sum(torch.square(pos_enc[:, i:i+1, :] - pos_enc[:, :, :]), dim = 2, keepdim = True))
+        attn_bias = 2 + 1e-24 - torch.sqrt(torch.cat(tmp_list, dim = 2))
+        assert(torch.sum(attn_bias < 0).item() < 1e-12)
+        return attn_bias[:, None, ...].repeat(1, self.num_heads, 1, 1)    
 
     def forward(self, batch, need_attn_weight = False, edge_attr = None, pos_enc = None):      
         x, edge_index, node_indices = batch     #node_indices is used to denote the idx of the graph that each node belongs to        

@@ -42,6 +42,7 @@ cfg.test_dataset.rootDir = '../../dataset/graph_dataset_rerefine'
 cfg.test_dataset.index_json = 'index_test.json'
 
 cfg.train = CN()
+cfg.train.begin_update_edge_attr_epoch = -1
 cfg.train.is_distributed = False
 cfg.train.save_best_acc=True
 cfg.train.save_ep = 10
@@ -79,6 +80,9 @@ cfg.network.pos_embedder = CN()
 cfg.network.pos_embedder.multires = 9
 cfg.network.pos_embedder.out_dim=512
 
+cfg.network.edge_embedder = CN()
+cfg.network.edge_embedder.multires = 9
+
 cfg.network.type_embedder = CN()
 cfg.network.type_embedder.out_dim = 512
 cfg.network.type_embedder.class_num = 11
@@ -110,6 +114,7 @@ cfg.network.loc_fn.latent_dims = [256,256]
 cfg.network.loc_fn.act_fn = 'LeakyReLU'
 cfg.network.loc_fn.norm_type = ''
 cfg.network.loc_fn.classes = 4
+cfg.network.loc_fn.use_voting_offset = False
 
 cfg.network.cls_loss = CN()
 cfg.network.cls_loss.type = 'focal_loss'

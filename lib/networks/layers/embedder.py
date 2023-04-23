@@ -30,12 +30,12 @@ class PosEmbedder_impl:
     def embed(self, inputs):
         return torch.cat([fn(inputs) for fn in self.embed_fns],-1)
 
-def GetPosEmbedder(multires, input_dim = 4):
+def GetPosEmbedder(multires, input_dim = 4, include_input = True):
     embed_kwargs = {
-        'include_input':True,
+        'include_input':include_input,
         'input_dims':input_dim,
-        'max_freq_log2':multires-1,
-        'num_freqs':multires,
+        'max_freq_log2':multires - 1,
+        'num_freqs': multires,
         'log_sampling':True,
         'periodic_fns':[torch.sin, torch.cos]
     }    
@@ -46,8 +46,8 @@ def GetPosEmbedder(multires, input_dim = 4):
 class PosEmbedder(nn.Module):
     def __init__(self, cfg):
         super(PosEmbedder, self).__init__()
-        self.embed, in_dim = GetPosEmbedder(cfg.multires)
-        self.fc_layer = nn.Linear(in_dim, cfg.out_dim)
+        self.embed, self.in_dim = GetPosEmbedder(cfg.multires)
+        self.fc_layer = nn.Linear(self.in_dim, cfg.out_dim)
         self.pos_enc = None
 
     def forward(self, x):
