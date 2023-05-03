@@ -1,5 +1,9 @@
+from locale import DAY_1
+import json
+from symbol import eval_input
 from torch.nn import DataParallel
 import torch
+from lib.utils.nms import contains
 from lib.config import cfg as CFG
 from lib.train.recorder import Recorder
 import time
@@ -12,9 +16,23 @@ from lib.utils import nms_merge
 import matplotlib.pyplot as plt
 import os
 from lib.utils import correct_dataset
-
+import numpy as np
 cfg = CFG.train
 
+def clip_val(x, lower, upper):
+    x = x if x >= lower else lower
+    x = x if x <= upper else upper
+    return x
+
+
+def scale_to_img(x , H, W):
+    x[0] = clip_val(x[0], 0, 1)
+    x[1] = clip_val(x[1], 0, 1)
+    x[2] = clip_val(x[2], 0, 1)
+    x[3] = clip_val(x[3], 0, 1)
+    return [x[0] * W, x[1] * H, x[0] * W + x[2] * W, x[1] * H + x[3] * H]
+    #return [int(x[0] * W), int(x[1] * H), int(x[0] * W) + int(x[2] * W), int(x[1] * H) + int(x[3] * H)]
+        
 class Trainer(object):
     def __init__(self, network):
         
@@ -103,13 +121,16 @@ class Trainer(object):
         '''
         merging_groups_pred = local_params[pred == 1] 
         
+        merging_groups_pred_mask = contains(merging_groups_pred, layer_rects_gt[pred == 1])
+
         if confidence is None:
             scores = cls_scores[pred == 1]
             merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred, scores, threshold=0.45)
 
         else:
             scores = confidence[pred == 1]
-            merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred[scores >= 0.5], scores[scores >= 0.5], threshold=0.4)
+            mask = torch.logical_and(scores >= 0.8, merging_groups_pred_mask) 
+            merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred[mask], scores[mask], threshold=0.4)
 
         merging_groups_gt = bboxes_gt[labels == 1] + fragmented_layers_gt
     
@@ -124,7 +145,7 @@ class Trainer(object):
                 'merging_groups_confidence': merging_groups_confidence
                }
 
-    def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False):
+    def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False, eval_merge = False):
 
         self.network.eval()
         torch.cuda.empty_cache()
@@ -134,7 +155,10 @@ class Trainer(object):
         pred_list = []
         label_list = []
         check_records = {}
+        eval_merging_acc = 0.0
 
+        gt_annotations = []
+        det_results = []
         for batch in tqdm.tqdm(data_loader):
             batch = self.to_cuda(list(batch))
             layer_rects, edges, types,  img_tensor, labels, bboxes, node_indices, file_list = batch
@@ -160,13 +184,33 @@ class Trainer(object):
                 merging_groups_confidence = fetch_data['merging_groups_confidence']
 
                 label_pred = fetch_data['label_pred']
+                merging_groups_gt_nms, _ = nms_merge(merging_groups_gt, torch.ones(merging_groups_gt.shape[0], device = merging_groups_gt.get_device()))
                 
+                if eval_merge:
+                    if len(merging_groups_pred_nms) and len(merging_groups_gt_nms):
+                        
+                        file_path, artboard_name = os.path.split(batch[7][0])
+                        artboard_name = artboard_name.split(".")[0]
+                        data_dict = json.load(open(f'/media/sda1/ljz-workspace/dataset/graph_dataset_rerefine_copy/{artboard_name}/{artboard_name}-{0}.json'))
+                        W, H = data_dict["artboard_width"], data_dict["artboard_height"]
+
+                        gt_info = {
+                            'bboxes': np.vstack([np.array(scale_to_img(x.cpu().numpy(), H, W)) for x in merging_groups_gt_nms]),
+                            'bboxes_ignore': None,
+                            'labels': np.zeros(len(merging_groups_gt_nms), dtype = np.int64),
+                            'labels_ignore': None
+                        }
+                        gt_annotations.append(gt_info)
+                        
+                        det_results.append([np.vstack([scale_to_img(t.cpu().numpy(), H, W) for t in merging_groups_pred_nms])])
+                        eval_merging_acc = eval_merging_acc + evaluator.evaluate_merging(merging_groups_pred_nms, label_pred, layer_rects, bboxes + layer_rects, labels)
+
                 centers_pred = fetch_data['centers_pred']
                 if val_nms:
                     #prev_pred = pred
                     label_pred = evaluator.correct_pred_with_nms(label_pred, merging_groups_pred_nms, layer_rects, types, threshold=0.45) 
                     #print(f"correct {torch.sum(pred!=prev_pred)}wrong preditions")
-                    
+                
                 pred_list.append(label_pred)
                 label_list.append(labels) 
 
@@ -187,12 +231,14 @@ class Trainer(object):
         for k in val_metric_stats.keys():
             #val_metric_stats[k] /= data_size
             metric_state.append('{}: {:.4f}'.format(k, val_metric_stats[k]))
-        print(loss_state,metric_state)
-
+        print(loss_state, metric_state, [{"merging_acc": eval_merging_acc / data_size}])
         if recorder:
             recorder.record('val', epoch, val_loss_stats)
             recorder.record('val', epoch, val_metric_stats)
 
+       
+        torch.save(gt_annotations, "gt_annotation.pkl")
+        torch.save(det_results, "det_results.pkl")
         return val_metric_stats
 
     '''def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False):
@@ -291,7 +337,7 @@ class Trainer(object):
             with torch.no_grad():
 
                 output, loss, loss_stats = self.network(batch)
-                logits, local_params = output
+                logits, centers, _, confidence = output
                 scores, pred = torch.max(F.softmax(logits,dim=1), 1)
                 
                 correct_mask = torch.logical_and( pred == 1, pred != labels)

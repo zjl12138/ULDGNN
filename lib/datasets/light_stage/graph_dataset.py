@@ -68,7 +68,11 @@ class Dataset(data.Dataset):
         return len(self.train_list)
 
     def read_img(self, path):
-        return Image.open(path).convert('RGB')
+        #return Image.open(path).convert("RGB")
+        img_tensor = T.ToTensor()(Image.open(path).convert('RGBA'))
+        img_tensor = 0.5 * (1 - img_tensor[3:,...]) + img_tensor[3:, ...] * img_tensor[:3, ...] 
+        img_tensor = T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(img_tensor)
+        return img_tensor
 
     def __getitem__(self, index) :
         
@@ -80,8 +84,9 @@ class Dataset(data.Dataset):
         artboard_idx = json_name.split(".")[0]
         graphs_in_this_arboard = glob.glob(os.path.join(self.root, artboard_idx)+"/*.json")
         graphs_in_this_arboard.sort()
-
-        layer_assets = self.img_transform(self.read_img(os.path.join(self.root, artboard_idx,assets_img)))
+        
+        #layer_assets = self.img_transform(self.read_img(os.path.join(self.root, artboard_idx,assets_img)))
+        layer_assets = self.read_img(os.path.join(self.root, artboard_idx,assets_img))
         layer_assets = list(torch.split(layer_assets,64,dim=1))
         
         artboard_img_path = os.path.join(self.root, artboard_idx, train_artboard['image'])

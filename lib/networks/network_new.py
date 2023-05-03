@@ -3,6 +3,7 @@ from ssl import cert_time_to_seconds
 import torch
 import torch.nn as nn
 import torch_geometric
+from lib.utils import contains
 from lib.networks.layers import make_fully_connected_layer, GATLayer, GPSLayer
 from lib.networks.layers import GetPosEmbedder, PosEmbedder, ImageEmbedder, TypeEmbedder
 from lib.networks.loss import make_classifier_loss, make_regression_loss
@@ -221,7 +222,8 @@ class GPSModel_with_voting(nn.Module):
         for idx, (name, gnn_layer) in enumerate(self.named_children()):
             if 'GPS' in name:
                 x = gnn_layer((x, edge_index, node_indices), edge_attr = edge_attr, pos_enc = pos_enc)
-                padding_zeros = padding_zeros + self.offset_head(x)
+                if idx >= 5:
+                    padding_zeros = padding_zeros + self.offset_head(x)
         x = torch.cat((padding_zeros, x), dim = 1)
         del padding_zeros
         return x 
@@ -233,13 +235,9 @@ class GPSModel_voting_update_edge_attr(nn.Module):
         self.num_heads = cfg.num_heads
         self.offset_head = nn.Linear(self.latent_dims[-1], 4)
         self.make(cfg)
-        self.update_edge_attr = False
 
     def set_edge_embedder(self, edge_embed):
         self.edge_embedder = edge_embed
-
-    def begin_update_edge_attr(self):
-        self.update_edge_attr = True
 
     def make(self, cfg):
         in_dim = cfg.in_dim
@@ -275,73 +273,15 @@ class GPSModel_voting_update_edge_attr(nn.Module):
                 x = gnn_layer((x, edge_index, node_indices), edge_attr = prev_edge_attr, pos_enc = pos_enc)
                 offset = self.offset_head(x)
                 padding_zeros = padding_zeros + offset
-                if  self.update_edge_attr:
-                    pos_enc = pos_enc + offset
-                    prev_edge_attr = self.edge_embedder(torch.abs(pos_enc[x_i, :] - pos_enc[x_j, :]))
+                pos_enc = pos_enc + offset
+                pos_enc = pos_enc.detach()
+                #print(pos_enc.requires_grad)
+                prev_edge_attr = self.edge_embedder(torch.abs(pos_enc[x_i, :] - pos_enc[x_j, :]))
         x = torch.cat((padding_zeros, x), dim = 1)
         del padding_zeros
         return x 
 
-class GPSModel_wo_shared_voting_update_edge_attr(nn.Module):
-    def __init__(self, cfg):
-        super(GPSModel_wo_shared_voting_update_edge_attr, self).__init__()
-        self.latent_dims = cfg.latent_dims
-        self.num_heads = cfg.num_heads
-        #self.offset_head = nn.Linear(self.latent_dims[-1], 4)
-        self.make(cfg)
-        self.update_edge_attr = False
 
-    def set_edge_embedder(self, edge_embed):
-        self.edge_embedder = edge_embed
-
-    def begin_update_edge_attr(self):
-        self.update_edge_attr = True
-
-    def make(self, cfg):
-        in_dim = cfg.in_dim
-        L = len(self.latent_dims) + 1
-        for idx, (latent_dim, num_head) in enumerate(zip(self.latent_dims, self.num_heads)):
-            self.add_module(
-                f'GPSLayer{idx}', GPSLayer(
-                    in_dim, 
-                    cfg.local_gnn_type,
-                    cfg.global_model_type,
-                    num_head,
-                    cfg.act_fn,
-                    cfg.dropout,
-                    cfg.attn_dropout,
-                    cfg.layer_norm,
-                    cfg.batch_norm,
-                    cfg.edge_dim
-                )
-            )
-            self.add_module(f'Linear{idx}', nn.Linear(in_dim, 4))
-            in_dim = latent_dim
-        
-    def forward(self, batch, edge_attr = None, pos_enc = None): # pos_enc [xywh]
-        x, edge_index, node_indices = batch
-        #print(torch.max(edges))
-        #print(x.shape)
-        padding_zeros = torch.zeros((x.shape[0], 4), device = x.get_device())
-        #x = torch.cat((padding_zeros, x), dim = 1)
-        x_i = edge_index[0, :]
-        x_j = edge_index[1, :]
-        prev_edge_attr = self.edge_embedder(torch.abs(pos_enc[x_i, :] - pos_enc[x_j, :]))
-        for idx, (name, layer) in enumerate(self.named_children()):
-            if 'GPS' in name:
-                x = layer((x, edge_index, node_indices), edge_attr = prev_edge_attr, pos_enc = pos_enc)
-            else:
-                offset = layer(x)
-                padding_zeros = padding_zeros + offset
-                if  self.update_edge_attr:
-                    pos_enc = pos_enc + offset.detach()
-                    prev_edge_attr = self.edge_embedder(torch.abs(pos_enc[x_i, :] - pos_enc[x_j, :]))
-
-        x = torch.cat((padding_zeros, x), dim = 1)
-        del padding_zeros
-        return x 
-
-'''
 class GPSModel_with_voting_v(nn.Module):#not used
     def __init__(self, cfg):
         super(GPSModel_with_voting_v, self).__init__()
@@ -369,7 +309,7 @@ class GPSModel_with_voting_v(nn.Module):#not used
             )
             self.add_module(f'Linear{idx}', nn.Linear(in_dim, 4))
             in_dim = latent_dim
- 
+        
     def forward(self, batch): # 
         x, edge_index, node_indices = batch
         #print(torch.max(edges))
@@ -385,11 +325,14 @@ class GPSModel_with_voting_v(nn.Module):#not used
       
         del padding_zeros
         return x 
-'''
+
 class Network(nn.Module):
     def __init__(self):
         super(Network, self).__init__()   
-        
+        self.cls_loss_fn = make_classifier_loss(cfg.cls_loss)
+        self.reg_loss_fn = make_regression_loss(cfg.reg_loss)
+        self.huber_fn = torch.nn.L1Loss() 
+
         cfg.gnn_fn.in_dim = cfg.pos_embedder.out_dim
         cfg.cls_fn.in_dim = cfg.gnn_fn.out_dim
         cfg.loc_fn.in_dim = cfg.gnn_fn.out_dim
@@ -401,10 +344,8 @@ class Network(nn.Module):
             #cfg.loc_fn.in_dim = cfg.gnn_fn.out_dim - 4
             print("adding voting mechanism!")
             cfg.cls_fn.in_dim = cfg.gnn_fn.out_dim + 4
-            if cfg.loc_fn.use_voting_offset:
-                print("use voting offset to predict residual offset in loc_fn!")
-                cfg.loc_fn.in_dim = cfg.loc_fn.in_dim + 4
-        self.loc_fn_use_voting_offset = cfg.loc_fn.use_voting_offset   
+            #cfg.loc_fn.in_dim = cfg.gnn_fn.out_dim + 4
+             
         self.bbox_regression_type = cfg.bbox_regression_type
         self.bbox_vote_radius = cfg.bbox_vote_radius   #used for vote clustering
         print("the bbox regression type: ", self.bbox_regression_type)
@@ -419,6 +360,7 @@ class Network(nn.Module):
         self.pos_embedder = PosEmbedder(cfg.pos_embedder)
         self.type_embedder = TypeEmbedder(cfg.type_embedder)
         self.img_embedder = ImageEmbedder(cfg.img_embedder)
+        
         #cfg.gnn_fn.edge_dim = self.pos_embedder.in_dim
         
         self.gnn_fn = make_gnn(cfg.gnn_fn.gnn_type)(cfg.gnn_fn)
@@ -448,14 +390,6 @@ class Network(nn.Module):
         else:
             print("train two branches together")
         
-        self.cls_loss_fn = make_classifier_loss(cfg.cls_loss)
-        self.reg_loss_fn = make_regression_loss(cfg.reg_loss)
-        self.huber_fn = torch.nn.L1Loss() 
-
-    def begin_update_edge_attr(self):
-        print("start updating edge_attr in GNN!")
-        self.gnn_fn.begin_update_edge_attr()
-
     def fix_network(self, model):
         for n, params in model.named_parameters():
             params.requires_grad = False
@@ -496,13 +430,15 @@ class Network(nn.Module):
 
         else:
             raise(f"No such bbox regression type: {self.bbox_regression_type}")
-        return (logits, centroids, bboxes, torch.nn.Sigmoid()(confidence) if confidence is not None else None)
+        #return (logits, centroids, bboxes, torch.nn.Sigmoid()(confidence) if confidence is not None else None)
+        return (logits, centroids, bboxes, confidence)
 
     def loss(self, output, gt):
         
         layer_rects, labels, bboxes = gt
         logits, centroids, local_params, confidence = self.process_output_data(output, layer_rects)
 
+        
         loss_stats = {}
         cls_loss = self.cls_loss_fn(logits, labels)
         assert(torch.sum(bboxes[labels == 0]).item() < 1e-8)
@@ -517,6 +453,9 @@ class Network(nn.Module):
             centroids = centroids[training_mask]
             if confidence is not None:
                 confidence = confidence[training_mask]
+            #print(local_params.shape, layer_rects.shape)
+            #if_pred_bbox_contain_layer = contains(local_params, layer_rects)
+            #print(if_pred_bbox_contain_layer.all())
         #local_params = local_params + layer_rects'''
         bboxes = bboxes + layer_rects
         bboxes_center = bboxes[:, 0 : 2] + bboxes[:, 2 : 4] * 0.5
@@ -555,7 +494,7 @@ class Network(nn.Module):
         #batch_embedding = type_embedding + img_embedding
 
         edge_attr = None
-        if cfg.gnn_fn.local_gnn_type == 'GINEConv':
+        if cfg.gnn_fn.local_gnn_type == 'GINEConv' or cfg.gnn_fn.local_gnn_type == 'GATConv':
             x_i = edges[0, :]
             x_j = edges[1, :]
             #edge_attr = pos_embedding[x_i, :] - pos_embedding[x_j, :] + img_embedding[x_i, :] - img_embedding[x_j, :]
@@ -567,11 +506,9 @@ class Network(nn.Module):
         confidence = None
 
         if 'voting' in self.gnn_type :
-            center_offset = gnn_out[:, :4]
             gnn_out = gnn_out[:, 4:]
-            if self.loc_fn_use_voting_offset:
-                gnn_out = torch.cat((center_offset, gnn_out), dim = 1)
-             
+            center_offset = gnn_out[:, :4] 
+
         if self.loc_type == 'classifier_with_gnn':
             loc_params = self.loc_fn(gnn_out, edges, node_indices)
 

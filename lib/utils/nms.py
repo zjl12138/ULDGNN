@@ -1,3 +1,4 @@
+from unittest import result
 import torch
 import os
 import json
@@ -27,8 +28,8 @@ def IoU(single_box, box_list):
     return iou'''
 
 def contains(box_large, box_small):
-    b1_xy = box_large[:2]
-    b1_wh = box_large[2:4]
+    b1_xy = box_large[:, :2]
+    b1_wh = box_large[:, 2:4]
     #b1_wh_half = b1_wh / 2
     b1_mins = b1_xy 
     b1_maxs = b1_xy + b1_wh
@@ -39,8 +40,8 @@ def contains(box_large, box_small):
     b2_mins = b2_xy
     b2_maxs = b2_xy + b2_wh
 
-    check_min = torch.logical_and( (b2_mins[:,0]-b1_mins[0])>=0, (b2_mins[:,1]-b1_mins[1])>=0 )
-    check_max = torch.logical_and( (b2_maxs[:,0]-b1_maxs[0])<=0, (b2_maxs[:,1]-b1_maxs[1])<=0 )
+    check_min = torch.logical_and( (b2_mins[:,0]-b1_mins[:, 0])>=0, (b2_mins[:,1]-b1_mins[:, 1])>=0 )
+    check_max = torch.logical_and( (b2_maxs[:,0]-b1_maxs[:, 0])<=0, (b2_maxs[:,1]-b1_maxs[:, 1])<=0 )
     return torch.logical_and(check_min, check_max)
 
 def IoU(box1, box2):
@@ -62,7 +63,7 @@ def IoU(box1, box2):
     b1_area = b1_wh[..., 0] * b1_wh[..., 1]
     b2_area = b2_wh[..., 0] * b2_wh[..., 1]
     union_area = b1_area + b2_area - intersect_area
-    iou = intersect_area / torch.clamp(union_area, min=1e-6)
+    iou = intersect_area / torch.clamp(union_area, min=1e-10)
     return iou
 
 def nms_merge(bboxes:torch.Tensor, scores:torch.Tensor, threshold=0.4):
@@ -156,3 +157,81 @@ def vote_clustering_each_layer(centroids, layer_rects, radius=0.001):
         cluster_bbox = get_the_bbox_of_cluster(cluster_layers)
         results[i, :] += cluster_bbox
     return results
+
+def contains_how_much(box1, box2):
+    b1_xy = box1[..., :2]
+    b1_wh = box1[..., 2:4]
+    #b1_wh_half = b1_wh / 2
+    b1_mins = b1_xy 
+    b1_maxs = b1_xy + b1_wh
+
+    b2_xy = box2[..., :2]
+    b2_wh = box2[..., 2 : 4]
+    #b2_wh_half = b2_wh / 2
+    b2_mins = b2_xy
+    b2_maxs = b2_xy + b2_wh
+    intersect_mins = torch.max(b1_mins, b2_mins)
+    intersect_maxs = torch.min(b1_maxs, b2_maxs)
+    intersect_wh = torch.max(intersect_maxs - intersect_mins, torch.zeros_like(intersect_maxs))
+    intersect_area = intersect_wh[..., 0] * intersect_wh[..., 1]
+    b1_area = b1_wh[..., 0] * b1_wh[..., 1]
+    b2_area = b2_wh[..., 0] * b2_wh[..., 1]
+    union_area = b1_area + b2_area - intersect_area
+    iou = intersect_area / torch.clamp(b2_area, min=1e-6)
+    return iou
+
+def merging_components(merging_groups_pred_nms,  layer_rects, pred_labels, merging_groups_confidence = None):
+   
+    areas = merging_groups_pred_nms[:, 2] * merging_groups_pred_nms[:, 3]
+    sort_idx = torch.argsort(areas, descending = False)
+    merging_groups_pred_nms = merging_groups_pred_nms[sort_idx]  
+    results = []
+    prev_mask = (torch.zeros(layer_rects.shape[0], device = layer_rects.get_device()) > 1)
+    for merging_rect in merging_groups_pred_nms:
+        iou = contains_how_much(merging_rect.unsqueeze(0), layer_rects)
+        cur_mask = torch.logical_and(~prev_mask, iou > 0.7) & (pred_labels == 1)
+        indices = torch.where(cur_mask)[0]
+        results.append(indices)
+        prev_mask = torch.logical_or(prev_mask, iou > 0.7)
+    return results
+
+def get_pred_adj(merging_list, n, device):
+    '''
+    @params:
+        n is the total number of layers in this artboard
+        merging_list take the form: [[0, 1, 2...], [3, 4, ... ], ...] meaning that layer_0, 1, 2 form a merging group and layer_3, 4 form the merging group
+    @output:
+        graph: n * n matrix, for the simple example above, the matrix is like
+        [1, 1, 1, 0, 0, ...]
+        [1, 1, 1, 0, 0, ...]
+        [1, 1, 1, 0, 0, ...]
+        [0, 0, 0, 1, 1, ...]
+        [0, 0, 0, 1, 1, ...]
+        [       .          ]
+        [       .          ]
+        [       .          ]
+    '''
+    graph = [[1 if i == j else 0 for i in range(n)] for j in range(n)]
+   
+    for merging_group in merging_list:
+        for i in merging_group:
+            for j in merging_group:
+                graph[i][j] = 1
+    return torch.tensor(graph, dtype = torch.int64, device = device)
+
+def get_gt_adj(bboxes, labels_gt):
+    n = bboxes.shape[0]
+    graph = [[0 for i in range(n)] for i in range(n)]
+    for idx, bbox in enumerate(bboxes):
+        jdx = idx + 1
+        graph[idx][idx]=1
+        if labels_gt[idx] == 0:
+            continue
+        while jdx < n:
+            if labels_gt[idx] == 0:
+                continue
+            if torch.sum(torch.abs(bboxes[idx, :] - bboxes[jdx, :]))<=1e-6:
+                graph[idx][jdx]=1
+                graph[jdx][idx]=1
+            jdx+=1
+    return torch.tensor(graph, dtype = torch.int64, device = bboxes.get_device())

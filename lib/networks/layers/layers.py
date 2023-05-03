@@ -1,6 +1,3 @@
-from dis import dis
-from cmath import isnan
-from turtle import pos
 from torch.nn import Linear
 from typing import List
 import torch.nn as nn
@@ -257,8 +254,8 @@ class GPSLayer(nn.Module):
         elif local_gnn_type == 'GATConv':
             self.local_model = pygnn.GATConv(in_channels = dim_h,
                                              out_channels = dim_h // num_heads,
-                                             heads = num_heads)
-        
+                                             heads = num_heads, edge_dim = edge_dim if edge_dim else None)
+         
         if global_model_type =='None':
             self.self_attn = None
         elif global_model_type == 'Transformer':
@@ -338,7 +335,7 @@ class GPSLayer(nn.Module):
         h_out_list = []
         if self.local_model is not None:
             self.local_model: pygnn.conv.MessagePassing
-            if self.local_gnn_type == 'GINEConv':
+            if self.local_gnn_type == 'GINEConv' or self.local_gnn_type == 'GATConv0':
                 assert(edge_attr is not None)
                 h_local = self.local_model(x, edge_index, edge_attr)
             else:

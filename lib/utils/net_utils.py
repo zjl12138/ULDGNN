@@ -26,7 +26,7 @@ def save_model(net, optim, scheduler, recorder, model_dir, epoch, last=False):
     os.system('rm {}'.format(
         os.path.join(model_dir, '{}.pth'.format(min(pths)))))
 
-def load_network(net, model_dir, resume=True, epoch=-1, strict=True):
+def load_network(net, model_dir, map_location = 'cuda:0', resume=True, epoch=-1, strict=True):
     if not resume:
         return 0
 
@@ -53,7 +53,7 @@ def load_network(net, model_dir, resume=True, epoch=-1, strict=True):
         model_path = model_dir
 
     print('load model: {}'.format(model_path))
-    pretrained_model = torch.load(model_path)
+    pretrained_model = torch.load(model_path, map_location = map_location)
     net.load_state_dict(pretrained_model['net'], strict=strict)
     return pretrained_model['epoch'] + 1
 

@@ -42,6 +42,7 @@ cfg.test_dataset.rootDir = '../../dataset/graph_dataset_rerefine'
 cfg.test_dataset.index_json = 'index_test.json'
 
 cfg.train = CN()
+cfg.train.load_all_pretrained = False
 cfg.train.begin_update_edge_attr_epoch = -1
 cfg.train.is_distributed = False
 cfg.train.save_best_acc=True
@@ -59,7 +60,7 @@ cfg.train.record_interval = 10
 cfg.train.shuffle=True
 cfg.train.scheduler = 'exponential'
 cfg.train.milestones = [80, 120, 200, 240]
-cfg.train.decay_epochs = 5
+cfg.train.decay_epochs = 10
 cfg.train.gamma = 0.99
 cfg.train.resume = True
 
@@ -106,6 +107,7 @@ cfg.network.cls_fn.latent_dims = [256,256]
 cfg.network.cls_fn.act_fn = 'LeakyReLU'
 cfg.network.cls_fn.norm_type = ''
 cfg.network.cls_fn.classes = 2
+cfg.network.cls_fn.use_voting_offset = True
 
 cfg.network.loc_fn = CN()
 cfg.network.loc_fn.loc_type = 'classifier'

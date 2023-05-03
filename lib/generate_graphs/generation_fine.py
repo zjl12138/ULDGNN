@@ -203,7 +203,7 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
             continue
         if merge_state:
             continue
-        if len(tmp_list) >= 100:
+        if len(tmp_list) >= 40:
             split_layers.append(tmp_list)
             tmp_list = []
     if 64 * 64 * len(layer_img_list_id)>=89478485:

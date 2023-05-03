@@ -7,21 +7,23 @@ train:
     is_distributed: True
     eval_ep: 10
     batch_size: 6
+    load_all_pretrained: True
 
 train_dataset:
     #rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
-    rootDir: '../../dataset/graph_dataset_rerefine'
-    index_json: 'index_train.json'
+    rootDir: '../../dataset/graph_dataset_rerefine_copy'
+    index_json: 'index_trainv2.json'
 
 test_dataset:
     #rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
-    rootDir: '../../dataset/graph_dataset_rerefine'
-    index_json: 'index_test.json'
+    rootDir: '../../dataset/graph_dataset_rerefine_copy'
+    index_json: 'index_testv2.json'
 
 test:
     vis_bbox: False
     val_nms: False
-
+    eval_merge: False
+    
 network:
     confidence_weight: 5.0
     use_attn_weight: False
@@ -29,6 +31,7 @@ network:
     bbox_vote_radius: 0.001
     #bbox_regression_type: 'center_regress'
     bbox_regression_type:  'offset_based_on_layer'
+    #bbox_regression_type:  'direct'
     #bbox_regression_type: 'attn_average'
     center_reg_loss:
         weight: 5.0

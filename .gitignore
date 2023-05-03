@@ -1,4 +1,6 @@
 # Byte-compiled / optimized / DLL files
+*.pkl
+*.json
 *.out
 output/
 __pycache__/
