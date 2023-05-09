@@ -2,6 +2,7 @@ from PIL.ImageOps import contain
 import torch
 import numpy as np
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
+from lib.utils.nms import contains_how_much
 from lib.utils import nms_merge, IoU, contains
 import torch.nn.functional as F
 from lib.utils import get_gt_adj, get_pred_adj, merging_components
@@ -34,12 +35,11 @@ class Evaluator:
         #acc = self.accuracy(C,target)
         acc = np.sum(C == target) / target.shape[0]
         #print(confusion_matrix(target,C).astype(np.float32))
-        '''precision = precision_score(C, target, average='macro')
-        recall = recall_score(C, target, average='macro')'''
-
-        recall = np.sum(C[target == 1] == 1) / np.sum(target == 1)
-        precision = np.sum(target[C == 1] == 1) / np.sum(C == 1)
-        f1 = f1_score(C,target,average='micro')
+        precision = precision_score(target, C, average = 'macro')
+        recall = recall_score(target, C, average = 'macro')
+        #recall = np.sum(C[target == 1] == 1) / np.sum(target == 1)
+        #precision = np.sum(target[C == 1] == 1) / np.sum(C == 1)
+        f1 = f1_score(target, C, average='macro')
         
         return {
                 'precision': torch.tensor(precision),
@@ -50,11 +50,12 @@ class Evaluator:
     
     def correct_pred_with_nms(self, pred,  bbox_results: torch.Tensor, layer_rects:torch.Tensor, types: torch.Tensor, threshold=0.45):
 
-        not_text = (types != 6)
+        not_text = (types <= 5)
         for bbox_result in bbox_results:
             iou = IoU(bbox_result, layer_rects)
-            inside = contains(bbox_result.unsqueeze(0), layer_rects)
-            correct_mask = torch.logical_and(not_text, inside)
+            #inside = contains(bbox_result.unsqueeze(0), layer_rects)
+            inside = contains_how_much(bbox_result.unsqueeze(0), layer_rects)
+            correct_mask = torch.logical_and(not_text, inside > 0.8)
             #correct_mask = torch.logical_or(correct_mask , iou < threshold)
             pred = torch.masked_fill(pred, correct_mask, 1)
         return pred    

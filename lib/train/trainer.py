@@ -3,7 +3,7 @@ import json
 from symbol import eval_input
 from torch.nn import DataParallel
 import torch
-from lib.utils.nms import contains
+from lib.utils.nms import contains, refine_merging_bbox
 from lib.config import cfg as CFG
 from lib.train.recorder import Recorder
 import time
@@ -47,6 +47,9 @@ class Trainer(object):
                 output_device=cfg.local_rank
             )
         self.network = network
+        self.anchor_box_wh = torch.tensor([[16.0, 8.0], [16.0, 16.0], [16.0, 32.0],
+                                           [64.0, 32.0], [64.0, 64.0], [64.0, 128.0],
+                                           [256.0, 128.0], [256.0, 256.0], [512.0, 512.0]], dtype = torch.float32).to(self.device) / 750.0
 
     def to_cuda(self, batch):
         for k, _ in enumerate(batch):
@@ -70,7 +73,7 @@ class Trainer(object):
             iteration += 1
             batch = self.to_cuda(list(batch))
 
-            output, loss, loss_stats = self.network(batch)  #output: (logits, centers, bboxes)
+            output, loss, loss_stats = self.network(batch, self.anchor_box_wh)  #output: (logits, centers, bboxes)
 
             optimizer.zero_grad()
             loss = loss.mean()
@@ -82,7 +85,7 @@ class Trainer(object):
             loss_stats = self.reduce_loss_stats(loss_stats)
             recorder.update_loss_stats(loss_stats)
 
-            logits, _, _, _ = output #output: (logits, centers, bboxes, confidence)
+            logits, _, _, _, _ = output #output: (logits, centers, bboxes, confidence, center_offset)
 
             _, pred = torch.max(F.softmax(logits,dim=1), 1)
 
@@ -110,7 +113,7 @@ class Trainer(object):
                 recorder.record('train')
     
     def process_output_data(self, output, layer_rects_gt, labels, bboxes_gt):
-        logits, centers, local_params, confidence = output #output: (logits, centers, bboxes)
+        logits, centers, local_params, confidence, _ = output #output: (logits, centers, bboxes)
         cls_scores, pred = torch.max(F.softmax(logits, dim = 1), 1)
 
         fragmented_layers_gt = layer_rects_gt[labels == 1]
@@ -145,7 +148,7 @@ class Trainer(object):
                 'merging_groups_confidence': merging_groups_confidence
                }
 
-    def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False, eval_merge = False):
+    def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False, eval_merge = False, eval_ap = False):
 
         self.network.eval()
         torch.cuda.empty_cache()
@@ -163,7 +166,7 @@ class Trainer(object):
             batch = self.to_cuda(list(batch))
             layer_rects, edges, types,  img_tensor, labels, bboxes, node_indices, file_list = batch
             with torch.no_grad():
-                output, loss, loss_stats = self.network(batch)
+                output, loss, loss_stats = self.network(batch, self.anchor_box_wh)
                 #val_stats = evaluator.evaluate(output, batch[4])
                 loss_stats = self.reduce_loss_stats(loss_stats)
                 
@@ -182,11 +185,20 @@ class Trainer(object):
                 merging_groups_pred = fetch_data['merging_groups_pred']
                 merging_groups_pred_nms = fetch_data['merging_groups_pred_nms']
                 merging_groups_confidence = fetch_data['merging_groups_confidence']
-
+                
                 label_pred = fetch_data['label_pred']
                 merging_groups_gt_nms, _ = nms_merge(merging_groups_gt, torch.ones(merging_groups_gt.shape[0], device = merging_groups_gt.get_device()))
                 
+                if val_nms:
+                    #prev_pred = pred
+                    label_pred = evaluator.correct_pred_with_nms(label_pred, merging_groups_pred_nms, layer_rects, types, threshold=0.45) 
+                    fetch_data['label_pred'] = label_pred
+                    #print(f"correct {torch.sum(pred!=prev_pred)}wrong preditions")
+                
                 if eval_merge:
+                    eval_merging_acc = eval_merging_acc + evaluator.evaluate_merging(merging_groups_pred_nms, label_pred, layer_rects, bboxes + layer_rects, labels)
+
+                if eval_ap:
                     if len(merging_groups_pred_nms) and len(merging_groups_gt_nms):
                         
                         file_path, artboard_name = os.path.split(batch[7][0])
@@ -201,26 +213,31 @@ class Trainer(object):
                             'labels_ignore': None
                         }
                         gt_annotations.append(gt_info)
+                        merging_groups_pred_nms_refine, merging_groups_confidence_new = refine_merging_bbox(torch.vstack(merging_groups_pred_nms), layer_rects, label_pred, merging_groups_confidence, categories = types)
+                        det_results.append([np.vstack([scale_to_img(t.cpu().numpy(), H, W) for t in merging_groups_pred_nms_refine])])
                         
-                        det_results.append([np.vstack([scale_to_img(t.cpu().numpy(), H, W) for t in merging_groups_pred_nms])])
-                        eval_merging_acc = eval_merging_acc + evaluator.evaluate_merging(merging_groups_pred_nms, label_pred, layer_rects, bboxes + layer_rects, labels)
-
+                        #det_results.append([np.vstack([scale_to_img(t.cpu().numpy(), H, W) for t in merging_groups_pred_nms])])
+            
                 centers_pred = fetch_data['centers_pred']
-                if val_nms:
-                    #prev_pred = pred
-                    label_pred = evaluator.correct_pred_with_nms(label_pred, merging_groups_pred_nms, layer_rects, types, threshold=0.45) 
-                    #print(f"correct {torch.sum(pred!=prev_pred)}wrong preditions")
                 
                 pred_list.append(label_pred)
                 label_list.append(labels) 
 
                 if visualizer is not None:
+                    '''
                     visualizer.visualize_pred(fragmented_layers_pred, merging_groups_pred, batch[7][0])
                     #visualizer.visualize_nms(merging_groups_pred_nms, batch[7][0])
                     visualizer.visualize_nms_with_labels(merging_groups_pred_nms, merging_groups_confidence, batch[7][0])
+                    
+                    if len(merging_groups_pred_nms) != 0:
+                        merging_groups_pred_nms, merging_groups_confidence = refine_merging_bbox(torch.vstack(merging_groups_pred_nms), layer_rects, label_pred, merging_groups_confidence, types)
+                        visualizer.visualize_nms_with_labels(merging_groups_pred_nms, merging_groups_confidence, batch[7][0], mode = "bbox_refine")
+                        #det_results.append([np.vstack([scale_to_img(t.cpu().numpy(), H, W) for t in merging_groups_pred_nms])])
+                        
                     visualizer.visualize_gt(fragmented_layers_gt, merging_groups_gt, batch[7][0])
                     visualizer.visualize_offset_of_centers(centers_pred, fragmented_layers_pred, batch[7][0])
-                    
+                    '''
+                    visualizer.visualize_overall(fetch_data, layer_rects, types, batch[7][0])
         val_metric_stats = evaluator.evaluate(torch.cat(pred_list), torch.cat(label_list))
 
         loss_state = []
@@ -319,7 +336,7 @@ class Trainer(object):
                                 recorder:Recorder, visualizer:visualizer=None, val_nms=False):
         self.network.eval()
         torch.cuda.empty_cache()
-        val_loss_stats = {}
+        val_loss_stats = {} 
         data_size = len(data_loader)
         val_metric_stats = {}
         pred_list = []

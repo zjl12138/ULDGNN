@@ -24,7 +24,7 @@ def test(cfg, network):
     val_loader = make_data_loader(cfg, is_train=False)
     vis = visualizer(cfg.visualizer)
     
-    trainer.val(begin_epoch, val_loader, evaluator, recorder, vis if cfg.test.vis_bbox else None, val_nms=cfg.test.val_nms, eval_merge = cfg.test.eval_merge)
+    trainer.val(begin_epoch, val_loader, evaluator, recorder, vis if cfg.test.vis_bbox else None, val_nms=cfg.test.val_nms, eval_merge = cfg.test.eval_merge, eval_ap = cfg.test.eval_ap)
 
 if __name__=='__main__':
     '''dataloader = make_data_loader(cfg,is_train=False)
@@ -47,6 +47,7 @@ if __name__=='__main__':
     cfg.train.local_rank = 3
     cfg.test.vis_bbox = False
     cfg.test.eval_merge = False
+    cfg.test.eval_ap = False
     cfg.test.val_nms = True
     network = make_network(cfg.network)
     begin_epoch = load_network(network, cfg.model_dir, map_location = f'cuda:{cfg.train.local_rank}')

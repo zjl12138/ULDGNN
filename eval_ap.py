@@ -7,7 +7,7 @@ annotations = torch.load("./gt_annotation.pkl")
 mean_ap, eval_results = eval_map(
     det_results, annotations, iou_thr = 0.50 , use_legacy_coordinate=True)
 print(mean_ap) 
-'''
+''' 
 import numpy as np
 
 from lib.evaluators import eval_map, tpfp_default, tpfp_imagenet

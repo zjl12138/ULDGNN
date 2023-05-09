@@ -93,7 +93,7 @@ class ProfileLoggingThread(LoggingThread,ABC):
         try:
             profile.runcall(self.run_impl)
         except Exception as e:
-            self.logger.error(f'{e}')
+            self.logger.error(e)
         finally:
             profile.dump_stats(self.profile_path)
 
@@ -163,6 +163,8 @@ def clip_val(x, lower, upper):
 async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_path:str, output_dir:str, folder_name):
     global Artboard_index
     assert(len(artboard_json['layers']) >= 10)
+    artboard_folder, _ = os.path.split(img_path)
+
     artboard_height = float(artboard_json['artboard_height']) # artboard_json is a dictionary
     artboard_width = float(artboard_json['artboard_width'])
 
@@ -181,6 +183,16 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
     remove_non_valid_layers = 0    
     layer_img_list_id = []
     for idx, layer in enumerate(artboard_json['layers']):
+        # we filter those layers whose label==0 and which cannot be exported 
+        layer_img_path = os.path.join(artboard_folder, 'layer_imgs', layer['id'] + ".png")
+        if not os.path.exists(layer_img_path):
+            remove_non_valid_layers += 1
+            continue
+        layer_img = Image.open(layer_img_path).convert("RGBA").resize((64, 64), resample = Image.BICUBIC)
+        if (np.array(layer_img) == 0).all() and layer['label'] == 0:
+            remove_non_valid_layers += 1
+            continue
+
         x, y, w, h = layer['layer_rect']
         x1, y1, x2, y2 = clip_val(x, 0,  artboard_width), clip_val(y, 0, artboard_height), clip_val(x + w, 0, artboard_width), clip_val(y + h, 0, artboard_height)
         
@@ -199,7 +211,7 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
             merge_state = False
             
         #layer_img = artboard_img.crop((x1,y1,x2,y2)).resize((64,64),resample=Image.BICUBIC)
-        layer_img_list_id.append([layer['id'], (x1, y1, x2, y2)])
+        layer_img_list_id.append([layer['id'], (x1, y1, x2, y2), layer['label']])
 
         tmp_list.append(layer)
         if len(artboard_json['layers']) - idx < 10:
@@ -213,19 +225,19 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
         print(img_path)
     assest_image = Image.new("RGBA", (64, 64 * len(layer_img_list_id)),
                                  (255, 255, 255, 255))
-    
-    artboard_folder, _ = os.path.split(img_path)
+
     for idx, layer_img_id_ in enumerate(layer_img_list_id):
-        layer_img_id, bbox = layer_img_id_
+        layer_img_id, bbox, label = layer_img_id_
         x1, y1, x2, y2 = bbox
         layer_img_path = os.path.join(artboard_folder, 'layer_imgs', layer_img_id + ".png")
         if not os.path.exists(layer_img_path):  #if the sketchtool cannot export layer named layer_img_id, we just use the patch img from original artboard img according to bbox
+            assert(os.path.exists(layer_img_path))
             layer_img = artboard_img.crop((x1, y1, x2, y2)).resize((64, 64), resample = Image.BICUBIC)
         else:
             layer_img = Image.open(layer_img_path).convert("RGBA").resize((64, 64), resample = Image.BICUBIC)
-            '''if (np.array(layer_img) == 0).all():
+            if (np.array(layer_img) == 0).all() and label != 0: # if the exported layer img is black 
                 #print(layer_img_path, idx, (x1, y1, x2, y2))
-                layer_img = artboard_img.crop((x1, y1, x2, y2)).resize((64,64),resample = Image.BICUBIC)'''
+                layer_img = artboard_img.crop((x1, y1, x2, y2)).resize((64,64),resample = Image.BICUBIC)
         assest_image.paste(layer_img, (0, idx * 64))
           
     assest_image.save(os.path.join(output_dir, file_name+"-assets.png"))
@@ -235,7 +247,7 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
             #print("**********", len(tmp_list), len(artboard_json['layers']), json_path)
             if len(split_layers) == 0:
                 print(img_path, len(artboard_json['layers']), remove_non_valid_layers, folder_name)
-            #assert(len(split_layers) != 0)
+            assert(len(split_layers) != 0)
             for lay in tmp_list:
                 split_layers[-1].append(lay) #    
         else:
@@ -269,7 +281,7 @@ class GenerateGraphsThread(ProfileLoggingThread):
         self.artboard_queue = artboard_queue
         self.pbar = pbar
         self.idx_mapping = idx_mapping
-        self.filter_artboard = [447, 529, 612, 1422, 2496, 3267, 4201, 286, 1669, 2001, 2441, 2431, 4322, 5462, 5466]
+        self.filter_artboard = [447, 529, 612, 1422, 2496, 3267, 4201, 286, 1669, 2001, 2441, 2431, 4322, 5462, 5466, 378, 1297, 1313, 2868, 3557, ]#223, 907, 918, 2547, 2067
 
     def run_impl(self):
         global Artboard_index

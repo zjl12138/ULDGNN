@@ -41,6 +41,8 @@ cfg.test_dataset.path = 'lib/datasets/light_stage/graph_dataset.py'
 cfg.test_dataset.rootDir = '../../dataset/graph_dataset_rerefine'
 cfg.test_dataset.index_json = 'index_test.json'
 
+cfg.test_dataset.bg_color_mode = cfg.train_dataset.bg_color_mode = 'None'
+
 cfg.train = CN()
 cfg.train.load_all_pretrained = False
 cfg.train.begin_update_edge_attr_epoch = -1

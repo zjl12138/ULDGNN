@@ -1,3 +1,4 @@
+from lib2to3.refactor import get_all_fix_names
 from unittest import result
 import torch
 import os
@@ -66,7 +67,7 @@ def IoU(box1, box2):
     iou = intersect_area / torch.clamp(union_area, min=1e-10)
     return iou
 
-def nms_merge(bboxes:torch.Tensor, scores:torch.Tensor, threshold=0.4):
+def nms_merge(bboxes:torch.Tensor, scores:torch.Tensor, threshold=0.4, mode = 'mean'):
     '''
     bboxes: [N, 4] (x, y, w, h)
     scores: [N, 1]
@@ -94,9 +95,16 @@ def nms_merge(bboxes:torch.Tensor, scores:torch.Tensor, threshold=0.4):
         overlapped_bboxes_confidence = confidence_list[overlapped, :]
         sum  += overlapped_bboxes.shape[0] + 1
         merged_bboxes = torch.cat((single_box[None, ...], overlapped_bboxes), dim = 0)
-        final_bbox, _ = torch.median(merged_bboxes, dim=0)
+        if mode == 'median':
+            final_bbox, _ = torch.median(merged_bboxes, dim=0)
+        elif mode == 'mean':
+            final_bbox = torch.mean(merged_bboxes, dim = 0)
         merged_confidence = torch.cat((confidence[0:1, :], overlapped_bboxes_confidence), dim = 0)
-        confidence_results.append(torch.mean(merged_confidence))
+        if mode == 'median':
+            confidence_results.append(torch.median(merged_confidence))
+        elif mode == 'mean':
+            confidence_results.append(torch.mean(merged_confidence))
+        
         #final_bbox[2:4] = final_bbox[2:4] - final_bbox[0:2]
         
         bbox_results.append(final_bbox)
@@ -186,7 +194,7 @@ def merging_components(merging_groups_pred_nms,  layer_rects, pred_labels, mergi
     sort_idx = torch.argsort(areas, descending = False)
     merging_groups_pred_nms = merging_groups_pred_nms[sort_idx]  
     results = []
-    prev_mask = (torch.zeros(layer_rects.shape[0], device = layer_rects.get_device()) > 1)
+    prev_mask = (torch.zeros(layer_rects.shape[0], device = layer_rects.get_device() if layer_rects.get_device() > 0 else torch.device("cpu")) > 1)
     for merging_rect in merging_groups_pred_nms:
         iou = contains_how_much(merging_rect.unsqueeze(0), layer_rects)
         cur_mask = torch.logical_and(~prev_mask, iou > 0.7) & (pred_labels == 1)
@@ -194,6 +202,30 @@ def merging_components(merging_groups_pred_nms,  layer_rects, pred_labels, mergi
         results.append(indices)
         prev_mask = torch.logical_or(prev_mask, iou > 0.7)
     return results
+
+def refine_merging_bbox(merging_groups_pred_nms, layer_rects, pred_labels, confidence, categories):
+    '''
+    @params:
+        merging_groups_pred_nms: (N, 4)
+        layer_rects: (N, 4)
+    '''
+    areas = merging_groups_pred_nms[:, 2] * merging_groups_pred_nms[:, 3]
+    sort_idx = torch.argsort(areas, descending = False)
+    merging_groups_pred_nms = merging_groups_pred_nms[sort_idx]  
+    results = []
+    confidence_list = []
+    prev_mask = (torch.zeros(layer_rects.shape[0], device = layer_rects.get_device()) > 1)
+    for merging_rect, confid in zip(merging_groups_pred_nms, confidence):
+        iou = contains_how_much(merging_rect.unsqueeze(0), layer_rects)
+        #cur_mask = torch.logical_and(~prev_mask, iou > 0.7) & (pred_labels == 1)
+        cur_mask = torch.logical_and(~prev_mask, iou > 0.7) & torch.logical_or((pred_labels == 1), categories <= 5)
+
+        indices = torch.where(cur_mask)[0]
+        if indices.shape[0]:
+            results.append(get_the_bbox_of_cluster(layer_rects[indices, :]))
+            confidence_list.append(confid)
+        prev_mask = torch.logical_or(prev_mask, iou > 0.7)
+    return results, torch.hstack(confidence_list)
 
 def get_pred_adj(merging_list, n, device):
     '''
@@ -234,4 +266,4 @@ def get_gt_adj(bboxes, labels_gt):
                 graph[idx][jdx]=1
                 graph[jdx][idx]=1
             jdx+=1
-    return torch.tensor(graph, dtype = torch.int64, device = bboxes.get_device())
+    return torch.tensor(graph, dtype = torch.int64, device = bboxes.get_device() if bboxes.get_device() >= 0 else torch.device("cpu"))

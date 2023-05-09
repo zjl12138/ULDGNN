@@ -32,7 +32,7 @@ network:
     #bbox_regression_type: 'step_voting'
     bbox_vote_radius: 0.001
     #bbox_regression_type: 'center_regress'
-    bbox_regression_type:  'offset_based_on_layer'
+    bbox_regression_type:  'offset_based_on_anchor'
     #bbox_regression_type:  'direct'
     #bbox_regression_type: 'attn_average'
     center_reg_loss:
@@ -53,7 +53,7 @@ network:
         weight: 10
 
     gnn_fn:
-      gnn_type: 'GPSModel_with_voting'
+      gnn_type: 'GPSModel'
       latent_dims: [128, 128, 128, 128, 128, 128, 128, 128, 128]
       num_heads: [4, 4, 4, 4, 4, 4, 4, 4, 4] 
       out_dim: 128
@@ -65,8 +65,8 @@ network:
       layer_norm: True
       batch_norm: False
     loc_fn: 
-      classes: 5
-      loc_type: 'classifier_with_confidence'
+      classes: 45
+      loc_type: 'classifier_with_anchor'
       gnn_latent_dims: [128, 128, 128]
       num_heads: [4, 4, 4] 
       out_dim: 128
