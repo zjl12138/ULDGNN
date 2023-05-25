@@ -187,6 +187,52 @@ class GPSModel(nn.Module):
                 #if idx >= 5:
         return x 
 
+class GPSModel_anchor(nn.Module):
+    def __init__(self, cfg):
+        super(GPSModel_anchor, self).__init__()
+        self.latent_dims = cfg.latent_dims
+        self.num_heads = cfg.num_heads
+        self.offset_head = nn.Linear(self.latent_dims[-1], 4 * 9)
+        self.make(cfg)
+
+    def make(self, cfg):
+        in_dim = cfg.in_dim
+        L = len(self.latent_dims) + 1
+        for idx, (latent_dim, num_head) in enumerate(zip(self.latent_dims, self.num_heads)):
+            self.add_module(
+                f'GPSLayer{idx}', GPSLayer(
+                    in_dim, 
+                    cfg.local_gnn_type,
+                    cfg.global_model_type,
+                    num_head,
+                    cfg.act_fn,
+                    cfg.dropout,
+                    cfg.attn_dropout,
+                    cfg.layer_norm,
+                    cfg.batch_norm,
+                    cfg.edge_dim
+                )
+            )
+            in_dim = latent_dim
+    
+    def set_edge_embedder(self, edge_embed):
+        self.edge_embedder = edge_embed
+
+    def forward(self, batch, edge_attr = None, pos_enc = None): # 
+        x, edge_index, node_indices = batch
+        #print(torch.max(edges))
+        #print(x.shape)
+        padding_zeros = torch.zeros((x.shape[0], 4 * 9), device = x.get_device())
+        #x = torch.cat((padding_zeros, x), dim = 1)
+        for idx, (name, gnn_layer) in enumerate(self.named_children()):
+            if 'GPS' in name:
+                x = gnn_layer((x, edge_index, node_indices), edge_attr = edge_attr, pos_enc = pos_enc)
+                #if idx >= 5:
+                padding_zeros = padding_zeros + self.offset_head(x)
+        #x = torch.cat((padding_zeros, x), dim = 1)
+        #del padding_zeros
+        return x, padding_zeros
+
 class GPSModel_with_voting(nn.Module):
     def __init__(self, cfg):
         super(GPSModel_with_voting, self).__init__()
@@ -448,10 +494,33 @@ class Network(nn.Module):
             bboxes = anchor_bboxes + local_params.reshape(-1, 4)
             centroids = bboxes[:, 0 : 2] + 0.5 * bboxes[:, 2 : 4]
             confidence = confidence.reshape(-1)
+
+        elif self.bbox_regression_type == 'anchor_encoding':
+            layer_rects_expand = layer_rects.repeat(1, 9)
+            layer_rects_expand = layer_rects_expand.reshape(-1, 4)
+            anchor_box_wh_expand = anchor_box_wh.repeat(layer_rects_expand.shape[0] // 9, 1)
+            local_params_reshape = local_params.reshape(-1, 4)
+            # (bboxes_xy - layer_xy) / anchor_wh = local_params_xy
+            bboxes_xy = local_params_reshape[:, 0 : 2] * anchor_box_wh_expand + layer_rects_expand[:, 0 : 2] + layer_rects_expand[:, 2 : 4] * 0.5 - 0.5 * anchor_box_wh_expand
+            bboxes_wh = torch.exp(local_params_reshape[:, 2 : 4]) * anchor_box_wh_expand
+            bboxes = torch.cat((bboxes_xy, bboxes_wh), dim = 1)
+            centroids = bboxes[:, 0 : 2] + 0.5 * bboxes[:, 2 : 4]
+            confidence = confidence.reshape(-1)
+                
         else:
             raise(f"No such bbox regression type: {self.bbox_regression_type}")
+        
         return (logits, centroids, bboxes, torch.nn.Sigmoid()(confidence) if confidence is not None else None, center_offset)
         #return (logits, centroids, bboxes, confidence)
+    def anchor_process(self, output):
+        logits, centroids, bboxes, confidence, center_offset = output
+        confidence_reshape = confidence.reshape(-1, 9)
+        confidence, confidence_argmax = torch.max(confidence_reshape, dim = 1)
+        centroids = centroids.reshape(-1, 2 * 9)
+        bboxes = bboxes.reshape(-1, 4 * 9)
+        centroids = torch.cat([torch.gather(centroids, 1, confidence_argmax.unsqueeze(1) + i) for i in range(2)], dim = 1)
+        centroids = torch.cat([torch.gather(bboxes, 1, confidence_argmax.unsqueeze(1) + i) for i in range(4)], dim = 1)
+        return (logits, centroids, bboxes, confidence, center_offset)
 
     def loss(self, output, gt, anchor_box_wh = None):
         
@@ -470,7 +539,7 @@ class Network(nn.Module):
             bboxes = bboxes[training_mask]
             layer_rects = layer_rects[training_mask]
 
-        if self.bbox_regression_type == 'offset_based_on_anchor':
+        if 'anchor' in self.bbox_regression_type:
             training_mask = training_mask[:, None].repeat(1, 9).reshape(9 * training_mask.shape[0])
 
         if torch.sum(training_mask) != 0:
@@ -483,11 +552,11 @@ class Network(nn.Module):
             #print(local_params.shape, layer_rects.shape)
             #if_pred_bbox_contain_layer = contains(local_params, layer_rects)
             #print(if_pred_bbox_contain_layer.all())
-        #local_params = local_params + layer_rects'''
+        #local_params = local_params + layer_rects
 
         bboxes = bboxes + layer_rects
         bboxes_center = bboxes[:, 0 : 2] + bboxes[:, 2 : 4] * 0.5
-        if self.bbox_regression_type == 'offset_based_on_anchor':
+        if 'anchor' in self.bbox_regression_type:
             bboxes = bboxes.repeat(1, 9).reshape(-1, 4)
             bboxes_center = bboxes_center.repeat(1, 9).reshape(-1, 2)
         #print(local_params, bboxes)
@@ -523,7 +592,7 @@ class Network(nn.Module):
 
     def forward(self, batch, anchor_box_wh = None):
         #nodes, edges, types,  img_tensor, labels, bboxes, node_indices, file_list
-        layer_rect, edges, classes, images, labels, bboxes, node_indices, _ = batch
+        layer_rect, edges, classes, images, labels, bboxes, _, node_indices, _ = batch
         pos_embedding = self.pos_embedder(layer_rect)
         type_embedding = self.type_embedder(classes)
         img_embedding = self.img_embedder(images)
@@ -533,13 +602,13 @@ class Network(nn.Module):
         #batch_embedding = type_embedding + img_embedding
 
         edge_attr = None
-        if cfg.gnn_fn.local_gnn_type == 'GINEConv' or cfg.gnn_fn.local_gnn_type == 'GATConv':
+        if cfg.gnn_fn.local_gnn_type == 'GINEConv' or cfg.gnn_fn.local_gnn_type == 'GATConv' or cfg.gnn_fn.local_gnn_type == 'PNAConv':
             x_i = edges[0, :]
             x_j = edges[1, :]
             #edge_attr = pos_embedding[x_i, :] - pos_embedding[x_j, :] + img_embedding[x_i, :] - img_embedding[x_j, :]
             #edge_attr = self.pos_embedder.embed(torch.abs(layer_rect[x_i, :] - layer_rect[x_j, :]))
             edge_attr = self.edge_embedder(torch.abs(layer_rect[x_i, :] - layer_rect[x_j, :]))
-           
+        
         gnn_out = self.gnn_fn((batch_embedding, edges, node_indices), edge_attr, layer_rect)
         logits = self.cls_fn(gnn_out)
         confidence = None
@@ -556,6 +625,7 @@ class Network(nn.Module):
             assert(out.size(-1) == 5)
             loc_params = out[:, :4]
             confidence = out[:, 4]
+            
         elif self.loc_type == 'classifier_with_anchor':
             out = self.loc_fn(gnn_out)
             loc_params = out[:, :36]
@@ -566,7 +636,11 @@ class Network(nn.Module):
         if 'voting' in self.gnn_type : 
             loc_params = center_offset + loc_params
         #print(logits.shape, loc_params.shape)
-        loss, loss_stats = self.loss([logits, loc_params, confidence, center_offset], [layer_rect, labels, bboxes], anchor_box_wh)
+        loss, loss_stats = self.loss([logits, loc_params, confidence, center_offset], 
+                                     [layer_rect, labels, bboxes], anchor_box_wh)
+        
+        if self.loc_type == 'classifier_with_anchor':
+            return self.anchor_process(self.process_output_data((logits, loc_params, confidence, center_offset), layer_rect, anchor_box_wh)), loss, loss_stats
         return self.process_output_data((logits, loc_params, confidence, center_offset), layer_rect, anchor_box_wh), loss, loss_stats
 
 if __name__=='__main__':

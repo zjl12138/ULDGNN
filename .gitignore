@@ -1,4 +1,6 @@
 # Byte-compiled / optimized / DLL files
+wandb/
+*.npy
 *.pkl
 *.json
 *.out

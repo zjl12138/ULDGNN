@@ -6,19 +6,19 @@ train:
     save_best_acc: True
     is_distributed: True
     eval_ep: 10
-    batch_size: 6
+    batch_size: 16
     load_all_pretrained: True
 
 train_dataset:
     #rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
-    rootDir: '../../dataset/graph_dataset_rererefine_copy'
-    index_json: 'index_trainv2.json'
+    rootDir: '../../dataset/EGFE_graph_dataset'
+    index_json: 'index_train.json'
     bg_color_mode: 'bg_color_orig'
 
 test_dataset:
     #rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
-    rootDir: '../../dataset/graph_dataset_rererefine_copy'
-    index_json: 'index_testv2.json'
+    rootDir: '../../dataset/EGFE_graph_dataset'
+    index_json: 'index_test.json'
     bg_color_mode: 'bg_color_orig'
 
 test:
@@ -38,13 +38,14 @@ network:
     #bbox_regression_type: 'attn_average'
     center_reg_loss:
         weight: 5.0
+
     pos_embedder:
         multires: 9
         out_dim: 128
         
     type_embedder:
         out_dim: 128
-        class_num: 11
+        class_num: 14
 
     img_embedder:
         out_dim: 128

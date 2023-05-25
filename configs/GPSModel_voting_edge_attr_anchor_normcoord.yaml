@@ -1,4 +1,4 @@
-gpus: [1, 2, 3]
+gpus: [0, 1, 2, 3]
 
 train:
     lr: 1e-4
@@ -14,12 +14,15 @@ train_dataset:
     rootDir: '../../dataset/graph_dataset_rererefine_copy'
     index_json: 'index_trainv2.json'
     bg_color_mode: 'bg_color_orig'
+    normalize_coord: True
+
 
 test_dataset:
     #rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
     rootDir: '../../dataset/graph_dataset_rererefine_copy'
     index_json: 'index_testv2.json'
     bg_color_mode: 'bg_color_orig'
+    normalize_coord: True
 
 test:
     vis_bbox: False

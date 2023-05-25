@@ -185,7 +185,7 @@ def contains_how_much(box1, box2):
     b1_area = b1_wh[..., 0] * b1_wh[..., 1]
     b2_area = b2_wh[..., 0] * b2_wh[..., 1]
     union_area = b1_area + b2_area - intersect_area
-    iou = intersect_area / torch.clamp(b2_area, min=1e-6)
+    iou = intersect_area / torch.clamp(b2_area, min=1e-10)
     return iou
 
 def merging_components(merging_groups_pred_nms,  layer_rects, pred_labels, merging_groups_confidence = None):
@@ -199,7 +199,8 @@ def merging_components(merging_groups_pred_nms,  layer_rects, pred_labels, mergi
         iou = contains_how_much(merging_rect.unsqueeze(0), layer_rects)
         cur_mask = torch.logical_and(~prev_mask, iou > 0.7) & (pred_labels == 1)
         indices = torch.where(cur_mask)[0]
-        results.append(indices)
+        if indices.shape[0] > 1:
+            results.append(indices)
         prev_mask = torch.logical_or(prev_mask, iou > 0.7)
     return results
 
@@ -225,6 +226,8 @@ def refine_merging_bbox(merging_groups_pred_nms, layer_rects, pred_labels, confi
             results.append(get_the_bbox_of_cluster(layer_rects[indices, :]))
             confidence_list.append(confid)
         prev_mask = torch.logical_or(prev_mask, iou > 0.7)
+    if len(results) == 0:
+        return results, confidence_list
     return results, torch.hstack(confidence_list)
 
 def get_pred_adj(merging_list, n, device):
@@ -244,7 +247,6 @@ def get_pred_adj(merging_list, n, device):
         [       .          ]
     '''
     graph = [[1 if i == j else 0 for i in range(n)] for j in range(n)]
-   
     for merging_group in merging_list:
         for i in merging_group:
             for j in merging_group:
@@ -256,14 +258,32 @@ def get_gt_adj(bboxes, labels_gt):
     graph = [[0 for i in range(n)] for i in range(n)]
     for idx, bbox in enumerate(bboxes):
         jdx = idx + 1
-        graph[idx][idx]=1
+        graph[idx][idx] = 1
         if labels_gt[idx] == 0:
             continue
         while jdx < n:
             if labels_gt[idx] == 0:
                 continue
-            if torch.sum(torch.abs(bboxes[idx, :] - bboxes[jdx, :]))<=1e-6:
-                graph[idx][jdx]=1
-                graph[jdx][idx]=1
-            jdx+=1
+            if torch.sum(torch.abs(bboxes[idx, :] - bboxes[jdx, :])) <= 1e-6:
+                graph[idx][jdx] = 1
+                graph[jdx][idx] = 1
+            jdx += 1
     return torch.tensor(graph, dtype = torch.int64, device = bboxes.get_device() if bboxes.get_device() >= 0 else torch.device("cpu"))
+
+def get_comp_gt_list(bboxes, labels_gt):
+    fragmented_layer_idxs = torch.where(labels_gt)[0]
+    comp_gt_list = []
+    visited = torch.zeros(fragmented_layer_idxs.shape[0])
+    for idx in range(fragmented_layer_idxs.shape[0]):
+        if visited[idx] == 0:
+            cur_idx = fragmented_layer_idxs[idx]
+            visited[idx] = 1
+            tmp = []
+            for jdx in fragmented_layer_idxs:
+                if torch.sum(torch.abs(bboxes[cur_idx, :] - bboxes[jdx, :])) <= 1e-6:
+                    tmp.append(jdx)
+            assert(cur_idx in tmp)
+            assert(len(tmp) > 0)
+            if len(tmp) >= 1:
+                comp_gt_list.append(torch.LongTensor(tmp))
+    return comp_gt_list

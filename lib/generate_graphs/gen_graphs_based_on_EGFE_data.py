@@ -84,48 +84,59 @@ async def generate_single_graph(layer_list, output_path, artboard_height, artboa
     types = []
     merge_groups = []
     tmp_merge_group = []
+    
     for idx, layer in enumerate(layer_list):
         x, y, w, h = abs(layer['rect']['x'])/artboard_width, layer['rect']['y']/artboard_height, layer['rect']['width']/artboard_width, layer['rect']['height']/artboard_height
-        x, y, w, h = clip_val(x),clip_val(y),clip_val(w),clip_val(h)
-        assert(x>=0 and x<=1)
-        assert(y>=0 and y<=1)
-        assert(w>=0 and w<=1)
-        assert(h>=0 and h<=1)
+        x, y, w, h = clip_val(x), clip_val(y), clip_val(w), clip_val(h)
+        assert(x >= 0 and x <= 1)
+        assert(y >= 0 and y <= 1)
+        assert(w >= 0 and w <= 1)
+        assert(h >= 0 and h <= 1)
         layer_rect.append([x, y, w, h])
         #print(root.num)
-        root.insert(bboxNode(root.num, x, y, x+w, x+h))
+        root.insert(bboxNode(root.num, x, y, x + w, x + h))
         types.append(LAYER_CLASS_MAP[layer['_class']])
-        if layer['label']==0 or layer['label']==1:
+        
+        label = layer['label']
+        if layer['label'] == 3:
+            label = 1
+        if layer['label'] == 1:
+            label = 0
+        
+        if label == 0:
             labels.append(0)
             bbox.append([0, 0, 0, 0])
-        else:
+
+        elif label == 2:
             labels.append(1)
             bbox.append([])
-        if layer['label']==2:
             if len(tmp_merge_group)!=0:
                 merge_groups.append(tmp_merge_group)
                 tmp_merge_group=[]
             tmp_merge_group.append(idx)
-        if layer['label']==3:
+            
+        elif label == 1:
+            labels.append(1)
+            bbox.append([])
             tmp_merge_group.append(idx)
-        if layer['label']==0 or layer['label']==1:
-            merge_groups.append(tmp_merge_group)
-            tmp_merge_group=[]
+        
     if len(tmp_merge_group)!=0:
         merge_groups.append(tmp_merge_group)
 
     for merge_group in merge_groups:
-        tmp_bbox = [2,2,0,0]    
+        tmp_bbox = [2, 2, 0, 0]    
         for idx in merge_group:
             x, y, w, h = layer_rect[idx]
-            tmp_bbox[0], tmp_bbox[1] = min(tmp_bbox[0],x),min(tmp_bbox[1],y)
-            tmp_bbox[2], tmp_bbox[3] = max(tmp_bbox[2],x+w), max(tmp_bbox[3],y+h)
+            tmp_bbox[0], tmp_bbox[1] = min(tmp_bbox[0], x), min(tmp_bbox[1], y)
+            tmp_bbox[2], tmp_bbox[3] = max(tmp_bbox[2], x + w), max(tmp_bbox[3], y + h)
         for idx in merge_group:
             x, y, w, h = layer_rect[idx]
-            bbox[idx].extend([tmp_bbox[0]-x,tmp_bbox[1]-y,tmp_bbox[2]-tmp_bbox[0]-w, tmp_bbox[3]-tmp_bbox[1]-h])
+            bbox[ idx ].extend([tmp_bbox[ 0 ] - x, tmp_bbox[ 1 ] - y,
+                                tmp_bbox[ 2 ] - tmp_bbox[ 0 ] - w, 
+                                tmp_bbox[ 3 ] - tmp_bbox[ 1 ] - h])
     
-    assert(len(layer_rect)==len(layer_list))
-    assert(len(bbox)==len(layer_list))
+    assert(len(layer_rect) == len(layer_list))
+    assert(len(bbox) == len(layer_list))
     assert(root.num == len(layer_list))
     tmp = []
     edges = root.gen_graph(tmp)
@@ -150,38 +161,11 @@ async def generate_graph(json_path:str, output_dir:str):
     split_num = 0
     merge_state = False
     for idx, layer in enumerate(artboard_json['layers']):
-        if layer['label'] == 2 :
-            merge_state=True
-        if layer['label'] == 0 or layer['label'] == 1:
-            if layer['_class']=='shapePath':
-                if not merge_state:
-                    layer['label']=2
-                else:
-                    layer['label']=3
-                #print(layer)
-                merge_state = True
-            else:
-                merge_state = False
-            
-        tmp_list.append(layer)
-        split_num += 1
-        if split_num >= 20:
-            if merge_state or len(artboard_json['layers']) - idx < 20:
-                continue
-            split_layers.append(tmp_list)
-            tmp_list = []
-            split_num = 0
-        
-    if len(tmp_list)!=0:
-        split_layers.append(tmp_list)
-    sum = 0
-    for idx, layer_list in enumerate(split_layers):
-        sum += len(layer_slist)
-        await generate_single_graph(layer_list,
-                        os.path.join(output_dir, file_name+f"-{idx}.json"),
+        split_layers.append(layer)
+    
+    await generate_single_graph(split_layers,
+                        os.path.join(output_dir, file_name+f"-{0}.json"),
                         artboard_height,artboard_width)
-  
-    assert(sum==len(artboard_json['layers']))
            
 def generate_graph_sync(json_path, output_dir):
     return asyncio.run( generate_graph(json_path, output_dir) )
@@ -241,23 +225,33 @@ def generate_graphs(json_list: List[str],
     json_queue.join()
 
 if __name__=='__main__':
-    rootdir="/media/sda1/ljz-workspace/dataset/ui_dataset/"
-    outDir = "/media/sda1/ljz-workspace/dataset/graph_dataset/"
+    rootdir="/media/sda1/cyn-workspace/CodeBase/sketch-project/sketch_transformer_dataset"
+    outDir = "/media/sda1/ljz-workspace/dataset/EGFE_graph_dataset/"
     os.makedirs(outDir, exist_ok=True)
-    indexes = 100
+    indexes = 4606
     json_list = [] 
     index_train = []
     for idx in range(indexes):
-        json_list.append(f'/media/sda1/ljz-workspace/dataset/ui_dataset/{idx}.json')
+        if idx == 2388:
+            continue
+        json_list.append(f'{rootdir}/{idx}.json')
         #index_train.append({"json": f"{idx}.json", "layerassets":f"{idx}-assets.png", "image":f"{idx}.png"})
         
     generate_graphs(json_list, '/media/sda1/ljz-workspace/code/ULDGNN/output/log',
                     '/media/sda1/ljz-workspace/code/ULDGNN/output/profile',
                     outDir,
                     max_threads=8)
-    #json.dump(index_train,open(f"{outDir}/index_train.json","w"))
-   
+    #json.dump(index_train, open(f"{outDir}/index_train.json","w"))
+    index_train_list = []
     for i in range(indexes):
+        index_train_list.append({"json": f"{i}.json",
+        "image": f"{i}.png",
+        "layerassets": f"{i}-assets.png"})
+    json.dump(index_train_list, open(f"{outDir}/index.json","w"))
+    
+    for i in range(indexes):
+        if i == 2388:
+            continue
         os.system(f"cp {rootdir}/{i}.png {outDir}/{i}/{i}.png")
         os.system(f"cp {rootdir}/{i}-assets.png {outDir}/{i}/{i}-assets.png")
     os.system(f"cp {rootdir}/index_train.json {outDir}/index_train.json")

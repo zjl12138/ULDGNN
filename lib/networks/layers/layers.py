@@ -255,7 +255,20 @@ class GPSLayer(nn.Module):
             self.local_model = pygnn.GATConv(in_channels = dim_h,
                                              out_channels = dim_h // num_heads,
                                              heads = num_heads, edge_dim = edge_dim if edge_dim else None)
-         
+        
+        elif local_gnn_type == 'GCNConv':
+            self.local_model = pygnn.GCNConv(in_channels = dim_h, out_channels = dim_h)
+        
+        elif local_gnn_type == 'PNAConv':
+            if edge_dim != 0:
+                print("Encoding edge_attr!")
+            else:
+                print("Not encoding edge_attr!")
+            self.local_model = pygnn.PNAConv(in_channels = dim_h, out_channels = dim_h, aggregators = ['mean', 'min', 'max', 'std'],
+                                            scalers = ['identity', 'amplification', 'attenuation'], edge_dim = edge_dim if edge_dim else None, 
+                                             towers=5, pre_layers=1, post_layers=1,
+                                            divide_input=False)
+        
         if global_model_type =='None':
             self.self_attn = None
         elif global_model_type == 'Transformer':
@@ -335,7 +348,7 @@ class GPSLayer(nn.Module):
         h_out_list = []
         if self.local_model is not None:
             self.local_model: pygnn.conv.MessagePassing
-            if self.local_gnn_type == 'GINEConv' or self.local_gnn_type == 'GATConv0':
+            if self.local_gnn_type == 'GINEConv' or self.local_gnn_type == 'GATConv' or self.local_gnn_type == 'PNAConv':
                 assert(edge_attr is not None)
                 h_local = self.local_model(x, edge_index, edge_attr)
             else:

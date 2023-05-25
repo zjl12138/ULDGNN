@@ -2,12 +2,13 @@ from collections import deque, defaultdict
 import torch
 from tensorboardX import SummaryWriter
 import os
+import wandb
+from lib.config.yacs import _to_dict
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
     window or the global series average.
     """
-
     def __init__(self, window_size=20):
         self.deque = deque(maxlen=window_size)
         self.total = 0.0
@@ -53,18 +54,18 @@ class Recorder(object):
         pattern = prefix+'/{}'
         for k, v in loss_stats.items():
             if isinstance(v, SmoothedValue):
+                #wandb.log({pattern.format(k) : v.median})
                 self.writer.add_scalar(pattern.format(k),v.median,step)
             else:
+                #wandb.log({pattern.format(k) : v})
                 self.writer.add_scalar(pattern.format(k), v, step)
 
     def state_dict(self):
-       
         scalar_dict = {}
         scalar_dict['step'] = self.step
         return scalar_dict
 
     def load_state_dict(self, scalar_dict):
-        
         self.step = scalar_dict['step']
 
     def __str__(self):

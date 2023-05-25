@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 import os
 from lib.utils import correct_dataset
 import numpy as np
+from math import sqrt
+
 cfg = CFG.train
 
 def clip_val(x, lower, upper):
@@ -50,6 +52,10 @@ class Trainer(object):
         self.anchor_box_wh = torch.tensor([[16.0, 8.0], [16.0, 16.0], [16.0, 32.0],
                                            [64.0, 32.0], [64.0, 64.0], [64.0, 128.0],
                                            [256.0, 128.0], [256.0, 256.0], [512.0, 512.0]], dtype = torch.float32).to(self.device) / 750.0
+        #self.anchor_box_wh = torch.tensor([[sqrt(16.0 * 8.0) * 2, sqrt(16.0 * 8.0)], [16.0, 16.0], [sqrt(16.0 * 8.0), 2 * sqrt(16.0 * 8.0)],
+        #                                   [sqrt(128.0 * 64.0) * 2, sqrt(128.0 * 64.0)], [128.0, 128.0], [sqrt(128.0 * 64.0), 2 * sqrt(128.0 * 64.0)],
+        #                                   [sqrt(128.0 * 256.0) * 2, sqrt(128.0 * 256.0)], [256.0, 256.0], [sqrt(128.0 * 256.0), 2 * sqrt(128.0 * 256.0)]], dtype = torch.float32).to(self.device) / 375.0
+
 
     def to_cuda(self, batch):
         for k, _ in enumerate(batch):
@@ -128,12 +134,13 @@ class Trainer(object):
 
         if confidence is None:
             scores = cls_scores[pred == 1]
-            merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred, scores, threshold=0.45)
+            merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred, scores, threshold = 0.45)
 
         else:
             scores = confidence[pred == 1]
-            mask = torch.logical_and(scores >= 0.8, merging_groups_pred_mask) 
-            merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred[mask], scores[mask], threshold=0.4)
+            #mask = torch.logical_and(scores >= 0.8, merging_groups_pred_mask) 
+            #merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred[mask], scores[mask], threshold=0.4)
+            merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred, scores, threshold=0.4)
 
         merging_groups_gt = bboxes_gt[labels == 1] + fragmented_layers_gt
     
@@ -162,9 +169,15 @@ class Trainer(object):
 
         gt_annotations = []
         det_results = []
+        
+        merge_eval_stats = {}
+        not_valid_samples = 0
         for batch in tqdm.tqdm(data_loader):
             batch = self.to_cuda(list(batch))
-            layer_rects, edges, types,  img_tensor, labels, bboxes, node_indices, file_list = batch
+            layer_rects_, edges, types,  img_tensor, labels, bboxes, layer_rects, node_indices, file_list = batch
+            if torch.sum(labels) == 0:
+                not_valid_samples += 1
+                continue
             with torch.no_grad():
                 output, loss, loss_stats = self.network(batch, self.anchor_box_wh)
                 #val_stats = evaluator.evaluate(output, batch[4])
@@ -187,7 +200,7 @@ class Trainer(object):
                 merging_groups_confidence = fetch_data['merging_groups_confidence']
                 
                 label_pred = fetch_data['label_pred']
-                merging_groups_gt_nms, _ = nms_merge(merging_groups_gt, torch.ones(merging_groups_gt.shape[0], device = merging_groups_gt.get_device()))
+                merging_groups_gt_nms, _ = nms_merge(merging_groups_gt, torch.ones(merging_groups_gt.shape[0], device = merging_groups_gt.device))
                 
                 if val_nms:
                     #prev_pred = pred
@@ -196,7 +209,11 @@ class Trainer(object):
                     #print(f"correct {torch.sum(pred!=prev_pred)}wrong preditions")
                 
                 if eval_merge:
-                    eval_merging_acc = eval_merging_acc + evaluator.evaluate_merging(merging_groups_pred_nms, label_pred, layer_rects, bboxes + layer_rects, labels)
+                    tmp_stats = evaluator.evaluate_merging(merging_groups_pred_nms, label_pred, layer_rects, bboxes + layer_rects, labels)
+                    for k, v in tmp_stats.items():
+                        merge_eval_stats.setdefault(k, 0)
+                        merge_eval_stats[k] += v
+                    #eval_merging_acc = eval_merging_acc + evaluator.evaluate_merging(merging_groups_pred_nms, label_pred, layer_rects, bboxes + layer_rects, labels)
 
                 if eval_ap:
                     if len(merging_groups_pred_nms) and len(merging_groups_gt_nms):
@@ -239,23 +256,31 @@ class Trainer(object):
                     '''
                     visualizer.visualize_overall(fetch_data, layer_rects, types, batch[7][0])
         val_metric_stats = evaluator.evaluate(torch.cat(pred_list), torch.cat(label_list))
-
+        data_size -= not_valid_samples
         loss_state = []
         metric_state = []
+        merge_eval_state = []
+        for k in merge_eval_stats.keys():
+            merge_eval_stats[k] /= data_size
+            merge_eval_state.append('{}: {}'.format(k, merge_eval_stats[k]))
+            
         for k in val_loss_stats.keys():
             val_loss_stats[k] /= data_size
             loss_state.append('{}: {:.4f}'.format(k, val_loss_stats[k]))
+        
         for k in val_metric_stats.keys():
             #val_metric_stats[k] /= data_size
             metric_state.append('{}: {:.4f}'.format(k, val_metric_stats[k]))
-        print(loss_state, metric_state, [{"merging_acc": eval_merging_acc / data_size}])
+        #print(loss_state, metric_state, [{"merging_acc": eval_merging_acc / data_size}])
+        print(loss_state, metric_state, merge_eval_state)
+        
         if recorder:
             recorder.record('val', epoch, val_loss_stats)
             recorder.record('val', epoch, val_metric_stats)
 
-       
-        torch.save(gt_annotations, "gt_annotation.pkl")
-        torch.save(det_results, "det_results.pkl")
+        if eval_ap:
+            torch.save(gt_annotations, "gt_annotation.pkl")
+            torch.save(det_results, "det_results.pkl")
         return val_metric_stats
 
     '''def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False):

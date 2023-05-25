@@ -21,6 +21,8 @@
        ....
     ...
 '''
+from fileinput import filename
+from turtle import width
 import math
 import cProfile
 import logging
@@ -182,6 +184,16 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
    
     remove_non_valid_layers = 0    
     layer_img_list_id = []
+    
+    W, H = int(artboard_width), int(artboard_height)
+    
+    window_layer_list = []
+    
+    if W >= H:
+        window_layer_list = [[] for i in range(W // H + 1)]
+    else:
+        window_layer_list = [[] for i in range(H // W + 1)]
+    
     for idx, layer in enumerate(artboard_json['layers']):
         # we filter those layers whose label==0 and which cannot be exported 
         layer_img_path = os.path.join(artboard_folder, 'layer_imgs', layer['id'] + ".png")
@@ -210,22 +222,35 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
         elif layer['label'] == 0 :
             merge_state = False
             
+        if len(artboard_json['layers']) <= 40:
+            window_layer_list[0].append(layer)
+        else:
+            center_x, center_y = (x1 + x2) / 2, (y1 + y2) / 2
+            belong_to_which_window = None
+            if W >= H:
+                belong_to_which_window = int(center_x) // H
+            else:
+                belong_to_which_window = int(center_y) // W
+            window_layer_list[belong_to_which_window].append(layer)
         #layer_img = artboard_img.crop((x1,y1,x2,y2)).resize((64,64),resample=Image.BICUBIC)
-        layer_img_list_id.append([layer['id'], (x1, y1, x2, y2), layer['label']])
-       
-        tmp_list.append(layer)
-        if len(artboard_json['layers']) - idx < 10:
-            continue
-        if merge_state:
-            continue
-        if len(tmp_list) >= 40:
-            split_layers.append(tmp_list)
-            tmp_list = []
+        #layer_img_list_id.append([layer['id'], (x1, y1, x2, y2), layer['label']])\
+    
+    for layers in window_layer_list:
+        for layer in layers:
+            x, y, w, h = layer['layer_rect']
+            x1, y1, x2, y2 = clip_val(x, 0,  artboard_width), clip_val(y, 0, artboard_height), clip_val(x + w, 0, artboard_width), clip_val(y + h, 0, artboard_height)
+            layer_img_list_id.append([layer['id'], (x1, y1, x2, y2), layer['label']])
+
     if 64 * 64 * len(layer_img_list_id)>=89478485:
         print(img_path)
     assest_image = Image.new("RGBA", (64, 64 * len(layer_img_list_id)),
                                  (255, 255, 255, 255))
 
+    assets_img = Image.open(f'/media/sda1/ljz-workspace/dataset/graph_dataset_rererefine_copy/{file_name}/{file_name}-assets_rerefine.png').convert("RGB")
+    assets_img = np.array(assets_img)
+    H, W, C = assets_img.shape
+    assert( H == len(layer_img_list_id) * 64) 
+    
     for idx, layer_img_id_ in enumerate(layer_img_list_id):
         layer_img_id, bbox, label = layer_img_id_
         x1, y1, x2, y2 = bbox
@@ -242,27 +267,19 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
           
     assest_image.save(os.path.join(output_dir, file_name+"-assets.png"))
     
-    if len(tmp_list) != 0:
-        if len(tmp_list) < 10:    # if the number of layers in this list is less than 10 we don't need generate graph for it
-            #print("**********", len(tmp_list), len(artboard_json['layers']), json_path)
-            if len(split_layers) == 0:
-                print(img_path, len(artboard_json['layers']), remove_non_valid_layers, folder_name)
-            assert(len(split_layers) != 0)
-            for lay in tmp_list:
-                split_layers[-1].append(lay) #    
-        else:
-            split_layers.append(tmp_list)
-        
-    sum = 0
-    for idx, layer_list in enumerate(split_layers):
-        sum += len(layer_list)
+    for idx, layer_list in enumerate(window_layer_list):
+        if len(layer_list) == 0:
+            continue
+        #sum += len(layer_list)
+        if len(layer_list) == 1:
+            print(file_name, len(layer_img_list_id), len(window_layer_list), idx)
         assert(len(layer_list) > 1)
-        await generate_single_graph(layer_list,
+        '''await generate_single_graph(layer_list,
                         os.path.join(output_dir, file_name+f"-{idx}.json"),
-                        artboard_height,artboard_width, json_path)
+                        artboard_height,artboard_width, json_path)'''
     #print(remove_non_valid_layers, sum ,len(artboard_json['layers']))
-    assert(sum == len(layer_img_list_id))
-    assert(sum == len(artboard_json['layers']) - remove_non_valid_layers)
+    #assert(sum == len(layer_img_list_id))
+    #assert(sum == len(artboard_json['layers']) - remove_non_valid_layers)
           
 def generate_graph_sync(artboard_json, artboard_img, img_path, json_path, output_dir,folder_name):
     return asyncio.run( generate_graph(artboard_json, artboard_img, img_path, json_path, output_dir,folder_name) )
@@ -356,7 +373,7 @@ def generate_graphs(idx_mapping, artboard_list: List[str],
     
 if __name__=='__main__':
     rootdir="/media/sda1/ljz-workspace/dataset/aliartboards_refine/"
-    outDir = "/media/sda1/ljz-workspace/dataset/graph_dataset_rererefine"
+    outDir = "/media/sda1/ljz-workspace/dataset/ULDGNN_dataset"
     logdir = 'out'
     os.makedirs(outDir, exist_ok = True)
     os.makedirs(logdir, exist_ok = True)

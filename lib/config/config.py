@@ -1,5 +1,5 @@
 from traitlets import default
-from .yacs import CfgNode as CN
+from .yacs import CfgNode as CN, _to_dict
 from . import yacs
 import argparse
 import os
@@ -34,12 +34,14 @@ cfg.train_dataset.module = 'lib.datasets.light_stage.graph_dataset'
 cfg.train_dataset.path = 'lib/datasets/light_stage/graph_dataset.py'
 cfg.train_dataset.rootDir = '../../dataset/graph_dataset_rerefine'
 cfg.train_dataset.index_json = 'index_train.json'
+cfg.train_dataset.normalize_coord = False
 
 cfg.test_dataset = CN()
 cfg.test_dataset.module = 'lib.datasets.light_stage.graph_dataset'
 cfg.test_dataset.path = 'lib/datasets/light_stage/graph_dataset.py'
 cfg.test_dataset.rootDir = '../../dataset/graph_dataset_rerefine'
 cfg.test_dataset.index_json = 'index_test.json'
+cfg.test_dataset.normalize_coord = False
 
 cfg.test_dataset.bg_color_mode = cfg.train_dataset.bg_color_mode = 'None'
 
@@ -173,7 +175,7 @@ def make_cfg(args):
     os.makedirs(cfg.visualizer.vis_dir, exist_ok=True)
     os.makedirs(cfg.model_dir, exist_ok=True)
     os.makedirs(cfg.config_dir, exist_ok=True)
-    yaml.dump(cfg, open(os.path.join(cfg.config_dir, "config.yaml"),"w"))
+    yaml.dump(_to_dict(cfg), open(os.path.join(cfg.config_dir, "config.yaml"),"w"))
     
 parser = argparse.ArgumentParser()
 parser.add_argument("--cfg_file", default = "configs/default.yaml", type=str)

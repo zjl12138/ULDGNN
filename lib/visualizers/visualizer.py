@@ -2,10 +2,13 @@ import cv2
 import torch
 import torch.nn.functional as F
 import os
+from torchvision.transforms.transforms import ToPILImage
 from lib.utils import nms_merge
 from lib.utils.nms import contains, refine_merging_bbox
 from torchvision.transforms import ToTensor
 from torchvision.utils import save_image
+from PIL import Image
+
 def clip_val(x, lower, upper):
     x = x if x >= lower else lower
     x = x if x <= upper else upper
@@ -39,7 +42,7 @@ class visualizer:
         #return ToTensor()(img_1)
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-correct.png'), img_1)
 
-    def visualize_pred_fraglayers(self, fragmented_layers_pred, img_path):
+    def visualize_pred_fraglayers(self, fragmented_layers_pred, img_path, save_file = False):
         img_1 = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
         
         file_path, artboard_name = os.path.split(img_path)
@@ -48,8 +51,11 @@ class visualizer:
         #print(layer_rects.shape, local_params.shape)
         for layer_rect in fragmented_layers_pred:
             cv2.rectangle(img_1, self.scale_to_img(layer_rect, H, W), (255, 0, 0), 1)
-
-        return ToTensor()(img_1)
+        if save_file:
+            img_1 = cv2.cvtColor(img_1, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-layers.png'), img_1)
+        else:
+            return ToTensor()(img_1)
 
     def visualize_pred(self, fragmented_layers_pred, merging_groups_pred, img_path, save_file = True):
         img_1 = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
@@ -84,7 +90,7 @@ class visualizer:
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-layers_gt.png'), img_1)
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-group_gt.png'), img_2)
 
-    def visualize_nms(self,  bbox_results:torch.Tensor, img_path, save_file = True):
+    def visualize_nms(self,  bbox_results:torch.Tensor, img_path, mode = 'nms', save_file = True):
         img_1 = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
     
         file_path, artboard_name = os.path.split(img_path)
@@ -95,7 +101,36 @@ class visualizer:
             cv2.rectangle(img_1, self.scale_to_img(bbox, H, W), (0, 255, 0), 1)
         if not save_file:
             return ToTensor()(img_1)
+        img_1 = cv2.cvtColor(img_1, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-{mode}.png'), img_1)
+        
+    def visualize_not_scale(self,  bbox_results:torch.Tensor, img_path, save_file = True):
+        img_1 = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
+    
+        file_path, artboard_name = os.path.split(img_path)
+        artboard_name = artboard_name.split(".")[0]
+        H, W, _ = img_1.shape
+        
+        for bbox in bbox_results:
+            cv2.rectangle(img_1, (int(bbox[0]),int(bbox[1]), int(bbox[2]), int(bbox[3])), (0, 255, 0), 1)
+        if not save_file:
+            return ToTensor()(img_1)
+        img_1 = cv2.cvtColor(img_1, cv2.COLOR_RGB2BGR)
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-group_nms.png'), img_1)
+    
+    def visualize_recon_artboard(self, layer_rects, img_tensors, img_path, save_file = True):
+        img_1 = Image.open(img_path).convert("RGB")
+    
+        file_path, artboard_name = os.path.split(img_path)
+        artboard_name = artboard_name.split(".")[0]
+        W, H = img_1.size
+        recons_artboard = Image.new(img_1.mode, img_1.size, color = 'white')
+        for layer_rect, img_tensor in zip(layer_rects, img_tensors):
+            x, y, w, h = self.scale_to_img(layer_rect, H, W)
+            recons_layer_img = ToPILImage(img_1.mode)(img_tensor).convert("RGB").resize((w+1, h+1))
+            recons_artboard.paste(recons_layer_img, (x, y))
+
+        recons_artboard.save(os.path.join(self.vis_dir, f'{artboard_name}-match.png'))
 
     def draw_label_type(self, image, bbox, label):
         
@@ -106,7 +141,7 @@ class visualizer:
         thickness = 1
         cv2.rectangle(image, (x, y), (x + w, y + h), color, thickness)
         
-        # 添加目标类别和置信度等信息
+        # 添加目标类别和置信度等信�?
         font_scale = 0.25
         font_thickness = 1
         (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness)
@@ -125,9 +160,10 @@ class visualizer:
         for bbox, confid in zip(bbox_results, confidence):
             self.draw_label_type(img_1, self.scale_to_img(bbox, H, W), '{:.2f}'.format(confid.item()))
             #cv2.rectangle(img_1, self.scale_to_img(bbox, H, W), (0, 255, 0), 1)
+        out_img = cv2.addWeighted(origin_img, 0.8, img_1, 0.2, 0)
         if not save_file:
-            out_img = cv2.addWeighted(origin_img, 0.8, img_1, 0.2, 0)
-        return ToTensor()(out_img)
+            return ToTensor()(out_img)
+        img_1 = cv2.cvtColor(img_1, cv2.COLOR_RGB2BGR)
         cv2.imwrite(os.path.join(self.vis_dir, f'{artboard_name}-{mode}.png'), out_img)
     
     def visualize_offset_of_centers(self, centers: torch.Tensor, layer_rects: torch.Tensor, img_path, save_file = True):
@@ -164,9 +200,9 @@ class visualizer:
         bbox_refine_img = None
         if len(merging_groups_pred_nms) != 0:
             merging_groups_pred_nms, merging_groups_confidence = refine_merging_bbox(torch.vstack(merging_groups_pred_nms), layer_rects, label_pred, merging_groups_confidence, types)
-            bbox_refine_img = self.visualize_nms_with_labels(merging_groups_pred_nms, merging_groups_confidence, img_path, mode = "bbox_refine", save_file = False)
+            if len(merging_groups_pred_nms):
+                bbox_refine_img = self.visualize_nms_with_labels(merging_groups_pred_nms, merging_groups_confidence, img_path, mode = "bbox_refine", save_file = False)
             #det_results.append([np.vstack([scale_to_img(t.cpu().numpy(), H, W) for t in merging_groups_pred_nms])])
-            
         fragmented_layers_gt_img, bbox_gt_img = self.visualize_gt(fragmented_layers_gt, merging_groups_gt, img_path, save_file = False)
         center_pred_img = self.visualize_offset_of_centers(centers_pred, fragmented_layers_pred, img_path, save_file = False)
 

@@ -1,4 +1,4 @@
-gpus: [1, 2, 3]
+gpus: [0, 1, 2, 3]
 
 train:
     lr: 1e-4
@@ -6,7 +6,7 @@ train:
     save_best_acc: True
     is_distributed: True
     eval_ep: 10
-    batch_size: 6
+    batch_size: 4
     load_all_pretrained: True
 
 train_dataset:
@@ -58,7 +58,7 @@ network:
       latent_dims: [128, 128, 128, 128, 128, 128, 128, 128, 128]
       num_heads: [4, 4, 4, 4, 4, 4, 4, 4, 4] 
       out_dim: 128
-      local_gnn_type: 'GINEConv'
+      local_gnn_type: 'GATConv'
       global_model_type: 'Transformer'
       act_fn: 'relu'
       dropout: 0.0
