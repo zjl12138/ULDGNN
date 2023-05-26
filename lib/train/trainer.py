@@ -260,6 +260,7 @@ class Trainer(object):
         loss_state = []
         metric_state = []
         merge_eval_state = []
+        print(data_size)
         for k in merge_eval_stats.keys():
             merge_eval_stats[k] /= data_size
             merge_eval_state.append('{}: {}'.format(k, merge_eval_stats[k]))

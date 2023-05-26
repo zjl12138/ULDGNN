@@ -270,16 +270,16 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
     for idx, layer_list in enumerate(window_layer_list):
         if len(layer_list) == 0:
             continue
-        #sum += len(layer_list)
+        # sum += len(layer_list)
         if len(layer_list) == 1:
             print(file_name, len(layer_img_list_id), len(window_layer_list), idx)
-        assert(len(layer_list) > 1)
+        # assert(len(layer_list) > 1)
         '''await generate_single_graph(layer_list,
                         os.path.join(output_dir, file_name+f"-{idx}.json"),
                         artboard_height,artboard_width, json_path)'''
-    #print(remove_non_valid_layers, sum ,len(artboard_json['layers']))
-    #assert(sum == len(layer_img_list_id))
-    #assert(sum == len(artboard_json['layers']) - remove_non_valid_layers)
+    # print(remove_non_valid_layers, sum ,len(artboard_json['layers']))
+    # assert(sum == len(layer_img_list_id))
+    # assert(sum == len(artboard_json['layers']) - remove_non_valid_layers)
           
 def generate_graph_sync(artboard_json, artboard_img, img_path, json_path, output_dir,folder_name):
     return asyncio.run( generate_graph(artboard_json, artboard_img, img_path, json_path, output_dir,folder_name) )
@@ -322,7 +322,7 @@ class GenerateGraphsThread(ProfileLoggingThread):
             
             if w * h >= 89478485:
                 print(w," ", h, img_path)
-            #if w >= 1500 or len(artboard_json['layers']) < 10 or len(artboard_json['layers'])>=1000:
+            # if w >= 1500 or len(artboard_json['layers']) < 10 or len(artboard_json['layers'])>=1000:
             if len(artboard_json['layers']) < 10 or len(artboard_json['layers']) >= 1000:
                 pass
             else:    

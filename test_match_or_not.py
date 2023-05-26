@@ -39,8 +39,8 @@ def get_merging_components_transformer(pred_label : torch.Tensor):
 
 if __name__=='__main__':
     cfg.test.batch_size = 1
-    cfg.test_dataset.rootDir = '../../dataset/EGFE_graph_dataset'
-    cfg.test_dataset.index_json = 'index_test.json'
+    cfg.test_dataset.rootDir = '../../dataset/graph_dataset_rererefine_copy'
+    cfg.test_dataset.index_json = 'index_trainv2.json'
     cfg.test_dataset.bg_color_mode = 'bg_color_orig'
     dataloader = make_data_loader(cfg,is_train=False)
     vis = visualizer(cfg.visualizer)
@@ -63,10 +63,12 @@ if __name__=='__main__':
     merge_iou = 0.0
     for batch in tqdm(dataloader):
         #network(batch)
-        nodes_, edges, types, img_tensors, labels, bboxes,nodes, node_indices, file_list  = batch
+        nodes_, edges, types, img_tensors, labels, bboxes, nodes, node_indices, file_list  = batch
         #print(node_indices)
-        vis.visualize_recon_artboard(nodes, img_tensors, file_list[0])
+        if nodes.shape[0] >= 500:
+            print(file_list)
+        '''vis.visualize_recon_artboard(nodes, img_tensors, file_list[0])
         vis.visualize_pred_fraglayers(nodes, file_list[0], save_file=True)
         bboxes = bboxes + nodes
         vis.visualize_nms(bboxes[labels == 1], file_list[0], save_file = True)
-    
+        '''

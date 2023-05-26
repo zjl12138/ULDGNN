@@ -51,6 +51,6 @@ if __name__=='__main__':
     cfg.test.val_nms = True
     network = make_network(cfg.network)
     begin_epoch = load_network(network, cfg.model_dir, map_location = f'cuda:{cfg.train.local_rank}')
-    #network.begin_update_edge_attr()
+    #network.begi n_update_edge_attr()
     print("begin epoch: ", begin_epoch)
     test(cfg, network)

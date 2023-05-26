@@ -69,7 +69,7 @@ class Evaluator:
         for bbox_result in bbox_results:
             # iou = IoU(bbox_result, layer_rects)
             #inside = contains(bbox_result.unsqueeze(0), layer_rects)
-            if bbox_result[2].item() * bbox_result[3].item() >= (20 * 20) / (375 * 375):
+            if bbox_result[2].item() * bbox_result[3].item() >= (20 * 20) / (750 * 375):
                 continue 
             inside = contains_how_much(bbox_result.unsqueeze(0), layer_rects)
             #correct_mask = inside > 0.7 

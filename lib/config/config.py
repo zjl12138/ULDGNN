@@ -157,9 +157,9 @@ def make_cfg(args):
             cfg.network.loc_fn.classes = 4
         else:
             cfg.network.loc_fn.classes = 2'''
-    if 'voting' in cfg.network.bbox_regression_type:
+    '''if 'voting' in cfg.network.bbox_regression_type:
         cfg.network.loc_fn.classes = 6
-    
+    '''
     if cfg.train.is_distributed:
         print("visible gpus: ", cfg.gpus)
         os.environ['CUDA_VISIBLE_DEVICES'] = ', '.join([str(gpu) for gpu in cfg.gpus])
