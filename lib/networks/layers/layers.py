@@ -230,7 +230,8 @@ class GPSLayer(nn.Module):
         self.activation = torch.nn.ReLU() if act=='relu' else torch.nn.LeakyReLU()
         self.attn_weights = 0
         self.local_gnn_type = local_gnn_type
-        print("local gnn_type: ",local_gnn_type)
+        print("local gnn_type: ", local_gnn_type)
+        print("global fn type: ", global_model_type)
         if local_gnn_type == 'None':
             self.local_model = None
         
@@ -269,7 +270,7 @@ class GPSLayer(nn.Module):
                                              towers=5, pre_layers=1, post_layers=1,
                                             divide_input=False)
         
-        if global_model_type =='None':
+        if global_model_type =='none':
             self.self_attn = None
         elif global_model_type == 'Transformer':
             self.self_attn = torch.nn.MultiheadAttention(
@@ -281,13 +282,16 @@ class GPSLayer(nn.Module):
 
         if self.layer_norm:
             self.norm1_local = pygnn.norm.LayerNorm(dim_h)
-            self.norm1_attn = pygnn.norm.LayerNorm(dim_h)
+            if self.self_attn is not None:
+                self.norm1_attn = pygnn.norm.LayerNorm(dim_h)
            
         if self.batch_norm:
             self.norm1_local = nn.BatchNorm1d(dim_h)
-            self.norm1_attn = nn.BatchNorm1d(dim_h)
+            if self.self_attn is not None:
+                self.norm1_attn = nn.BatchNorm1d(dim_h)
         self.dropout_local = nn.Dropout(dropout)
-        self.dropout_attn = nn.Dropout(dropout)
+        if self.self_attn is not None:
+            self.dropout_attn = nn.Dropout(dropout)
 
         # Feed Forward block.
         self.ff_linear1 = nn.Linear(dim_h, dim_h * 2)
@@ -355,12 +359,12 @@ class GPSLayer(nn.Module):
                 h_local = self.local_model(x, edge_index)
             h_local = self.dropout_local(h_local)
             h_local = h_in1 + h_local
-        assert(not (self.layer_norm and self.batch_norm) )
-        if self.layer_norm:
-            h_local = self.norm1_local(h_local, node_indices)
-        if self.batch_norm:
-            h_local = self.batch_norm(h_local)
-        h_out_list.append(h_local)
+            assert(not (self.layer_norm and self.batch_norm) )
+            if self.layer_norm:
+                h_local = self.norm1_local(h_local, node_indices)
+            if self.batch_norm:
+                h_local = self.batch_norm(h_local)
+            h_out_list.append(h_local)
 
         if self.self_attn is not None:
             h_dense, mask = to_dense_batch(h, node_indices) # h_dense: [batch_size, seq_len, dim]

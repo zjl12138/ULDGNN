@@ -6,18 +6,18 @@ train:
     save_best_acc: True
     is_distributed: True
     eval_ep: 10
-    batch_size: 6
+    batch_size: 4
     load_all_pretrained: True
 
 train_dataset:
-    #rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
-    rootDir: '../../dataset/graph_dataset_rererefine_copy'
+    # rootDir: '../../dataset/graph_dataset_rererefine_copy'
+    rootDir: '../../dataset/ULDGNN_graph_dataset'
     index_json: 'index_trainv2.json'
     bg_color_mode: 'bg_color_orig'
 
 test_dataset:
-    #rootDir: '../../dataset/graph_dataset_rerefine_large_graph_fill_blank'
-    rootDir: '../../dataset/graph_dataset_rererefine_copy'
+    # rootDir: '../../dataset/graph_dataset_rererefine_copy'
+    rootDir: '../../dataset/ULDGNN_graph_dataset'
     index_json: 'index_testv2.json'
     bg_color_mode: 'bg_color_orig'
 
@@ -27,6 +27,10 @@ test:
     eval_merge: False
     
 network:
+    remove_pos: False
+    remove_type: False
+    remove_img: False
+
     confidence_weight: 5.0
     use_attn_weight: False
     #bbox_regression_type: 'step_voting'

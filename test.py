@@ -1,3 +1,4 @@
+from re import T
 from lib.datasets import make_data_loader
 from lib.config import cfg
 from lib.visualizers import visualizer
@@ -44,11 +45,16 @@ if __name__=='__main__':
     '''
     #cfg.test.vis_bbox = True
     cfg.train.is_distributed = False
-    cfg.train.local_rank = 2
-    cfg.test.vis_bbox = False
+    cfg.train.local_rank = 1
+    cfg.test.vis_bbox = True
     cfg.test.eval_merge = True
     cfg.test.eval_ap = False
-    cfg.test.val_nms = True
+    cfg.test.val_nms = False
+    # cfg.test_dataset.rootDir = '../../dataset/EGFE_graph_dataset_refine'
+    # cfg.test_dataset.index_json = 'index_testv2.json'
+    # cfg.test_dataset.bg_color_mode = 'bg_color_orig'
+    print(cfg.test_dataset.index_json)
+    print(cfg.test_dataset.rootDir)
     network = make_network(cfg.network)
     begin_epoch = load_network(network, cfg.model_dir, map_location = f'cuda:{cfg.train.local_rank}')
     #network.begi n_update_edge_attr()

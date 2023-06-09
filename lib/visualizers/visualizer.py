@@ -141,7 +141,7 @@ class visualizer:
         thickness = 1
         cv2.rectangle(image, (x, y), (x + w, y + h), color, thickness)
         
-        # 添加目标类别和置信度等信�?
+        # 添加目标类别和置信度等信?
         font_scale = 0.25
         font_thickness = 1
         (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness)

@@ -95,11 +95,16 @@ def nms_merge(bboxes:torch.Tensor, scores:torch.Tensor, threshold=0.4, mode = 'm
         overlapped_bboxes_confidence = confidence_list[overlapped, :]
         sum  += overlapped_bboxes.shape[0] + 1
         merged_bboxes = torch.cat((single_box[None, ...], overlapped_bboxes), dim = 0)
+        merged_confidence = torch.cat((confidence[0 : 1, :], overlapped_bboxes_confidence), dim = 0)
+        
         if mode == 'median':
             final_bbox, _ = torch.median(merged_bboxes, dim=0)
         elif mode == 'mean':
             final_bbox = torch.mean(merged_bboxes, dim = 0)
-        merged_confidence = torch.cat((confidence[0:1, :], overlapped_bboxes_confidence), dim = 0)
+        elif mode == 'max':
+            max_idx = torch.argsort(merged_confidence, dim = 0, descending = True)[0]
+            final_bbox = merged_bboxes[max_idx]
+            
         if mode == 'median':
             confidence_results.append(torch.median(merged_confidence))
         elif mode == 'mean':

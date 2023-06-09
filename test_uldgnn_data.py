@@ -38,9 +38,11 @@ def get_merging_components_transformer(pred_label : torch.Tensor):
     return merging_list
 
 if __name__=='__main__':
+    cfg.test_dataset.module = 'lib.datasets.light_stage.graph_dataset_new'
+    cfg.test_dataset.path = 'lib/datasets/light_stage/graph_dataset_new.py'
     cfg.test.batch_size = 1
-    cfg.test_dataset.rootDir = '../../dataset/EGFE_graph_dataset'
-    cfg.test_dataset.index_json = 'index_testv2.json'
+    cfg.test_dataset.rootDir = '../../dataset/ULDGNN_graph_dataset'
+    cfg.test_dataset.index_json = 'index_tmp.json'
     cfg.test_dataset.bg_color_mode = 'bg_color_orig'
     dataloader = make_data_loader(cfg,is_train=False)
     vis = visualizer(cfg.visualizer)
@@ -62,15 +64,15 @@ if __name__=='__main__':
     merge_precision = 0.0 
     merge_iou = 0.0
     for batch in tqdm(dataloader):
-        #network(batch)
+        # network(batch)
         nodes_, edges, types, img_tensors, labels, bboxes, nodes, node_indices, file_list  = batch
-        #print(node_indices)
+        # print(node_indices)
         positives += torch.sum(labels)
         negatives += labels.shape[0] - torch.sum(labels)
-    print(positives, negatives)
+        # print(positives, negatives)
     
-    '''vis.visualize_recon_artboard(nodes, img_tensors, file_list[0])
+        vis.visualize_recon_artboard(nodes, img_tensors, file_list[0])
         vis.visualize_pred_fraglayers(nodes, file_list[0], save_file=True)
-        bboxes = bboxes + nodes
+        # bboxes = bboxes + nodes
         vis.visualize_nms(bboxes[labels == 1], file_list[0], save_file = True)
-        '''
+        

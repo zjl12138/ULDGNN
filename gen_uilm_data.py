@@ -37,23 +37,6 @@ def random_color(n_colors):
     np.save('color.npy', color_list)
     return color_list
 
-def containes_how_much(box1, box2):
-    
-    b1_mins = box1[:2]
-    b1_maxs = box1[..., 2:4]
-
-    b2_mins = box2[:2]
-    b2_maxs = box2[2:4]
-    intersect_mins = [max(b1_mins[0], b2_mins[0]), max(b1_mins[1], b2_mins[1])]
-    intersect_maxs = [min(b1_maxs[0], b2_maxs[0]), min(b1_maxs[1], b2_maxs[1])]
-    
-    intersect_wh = torch.max(intersect_maxs - intersect_mins, torch.zeros_like(intersect_maxs))
-    intersect_area = intersect_wh[..., 0] * intersect_wh[..., 1]
-    b1_area = b1_wh[..., 0] * b1_wh[..., 1]
-    b2_area = b2_wh[..., 0] * b2_wh[..., 1]
-    union_area = b1_area + b2_area - intersect_area
-    iou = intersect_area / torch.clamp(union_area, min=1e-10)
-    return iou
 
 if __name__=='__main__':
     cfg.test.batch_size = 1

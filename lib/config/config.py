@@ -74,6 +74,9 @@ cfg.test.vis_bbox = True
 cfg.test.val_nms = False
 
 cfg.network = CN()
+cfg.network.remove_pos = False
+cfg.network.remove_type = False
+cfg.network.remove_img = False
 cfg.network.confidence_weight = 5.0
 cfg.network.use_attn_weight = False
 cfg.network.train_mode = 0  # mode 0: train two branches together, 1: only train cls branch, 2:only train loc branch

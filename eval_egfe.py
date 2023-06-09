@@ -1,5 +1,5 @@
 from scipy.sparse import data
-from lib.utils.nms import nms_merge, get_comp_gt_list
+from lib.utils.nms import get_the_bbox_of_cluster, nms_merge, get_comp_gt_list
 from lib.datasets import make_data_loader
 from lib.config import cfg
 from lib.visualizers import visualizer
@@ -64,6 +64,7 @@ if __name__=='__main__':
     merging_iou_recall = 0
     merging_iou_precision = 0
     not_valid_samples = 0
+    text_type = 9
     for batch in tqdm(dataloader):
         #network(batch)
         nodes_, edges, types, img_tensor, labels, bboxes, nodes, node_indices, file_list  = batch
@@ -75,12 +76,12 @@ if __name__=='__main__':
         pred_result = torch.LongTensor(result_transformer[artboard_name+".json"])
         pred_result_with_text = torch.zeros(nodes.shape[0]).long()
 
-        assert(pred_result.shape[0] + torch.sum(types == 9) == nodes.shape[0])
+        assert(pred_result.shape[0] + torch.sum(types == text_type) == nodes.shape[0])
         pred_result_with_text_3_class = torch.zeros(nodes.shape[0]).long()
 
         pred_label = torch.masked_fill(pred_result, pred_result != 0, 1)
-        pred_result_with_text[types != 9] = pred_label
-        pred_result_with_text_3_class[types != 9] = pred_result
+        pred_result_with_text[types != text_type] = pred_label
+        pred_result_with_text_3_class[types != text_type] = pred_result
 
         labels_pred.append(pred_result_with_text)
         labels_gt.append(labels)
@@ -95,7 +96,11 @@ if __name__=='__main__':
         merging_iou_recall += evaluator.evaluate_merging_iou(merging_groups_gt, merging_list)
         merging_iou_precision += evaluator.evaluate_merging_iou(merging_list, merging_groups_gt)
         
-    
+        vis_bboxes = []
+        for merging_group in merging_list:
+            vis_bboxes.append(get_the_bbox_of_cluster(bboxes[merging_group, :]))
+        vis.visualize_nms(vis_bboxes, file_list[0])
+        vis.visualize_pred_fraglayers(nodes[pred_result_with_text == 1], file_list[0], save_file = True)
         #merge_recall += torch.sum(adj_gt[labels==1, :][:, labels==1] == adj_pred[labels==1, :][:, labels==1]).item() / (torch.sum(labels) ** 2)
         tmp_merge_recall = 0
         for merge_comp_gt in merging_groups_gt:

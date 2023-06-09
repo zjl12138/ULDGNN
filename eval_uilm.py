@@ -1,5 +1,4 @@
-from cProfile import label
-from mmdet.core import bbox
+
 from scipy.sparse import data
 from lib.utils.nms import get_the_bbox_of_cluster, nms_merge
 from lib.datasets import make_data_loader
@@ -41,19 +40,19 @@ def get_merging_components_transformer(pred_label : torch.Tensor):
     return merging_list
 
 def process_bbox_result():
-    bbox_dict = json.load(open("bbox_result_egfe_data.json"))
+    bbox_dict = json.load(open("bbox_result_egfe_data_resplit.json"))
     new_bbox_dict = {}
     for key in bbox_dict.keys():
         artboard_name, _, x_window, y_window = key.split("/")[0].split("-")
         new_bbox_dict.setdefault(artboard_name, [])
         new_bbox_dict[artboard_name].append({x_window + "-" + y_window : bbox_dict[key]})
-    json.dump(new_bbox_dict, open("new_bbox_result_egfe_data.json", "w"))
+    json.dump(new_bbox_dict, open("new_bbox_result_egfe_data_resplit", "w"))
     return new_bbox_dict
 
 if __name__=='__main__':
     cfg.test.batch_size = 1
     cfg.test_dataset.rootDir = '../../dataset/EGFE_graph_dataset'
-    cfg.test_dataset.index_json = 'index_test.json'
+    cfg.test_dataset.index_json = 'index_testv2.json'
     cfg.test_dataset.bg_color_mode = 'bg_color_orig'
     dataloader = make_data_loader(cfg,is_train = False)
     vis = visualizer(cfg.visualizer)
@@ -134,10 +133,10 @@ if __name__=='__main__':
         
         merging_groups_pred = merging_components(torch.vstack(bbox_pred), nodes, pred_labels)
         refine_bbox = []
-        '''for merge_group in merging_groups_pred:
+        for merge_group in merging_groups_pred:
             refine_bbox.append(get_the_bbox_of_cluster(nodes[merge_group, :]))
         vis.visualize_nms(refine_bbox, file_list[0], mode = 'refine')
-        '''
+        vis.visualize_pred_fraglayers(nodes[pred_labels==1], file_list[0], save_file = True)
         merge_recall += eval_merging_dict['merge_recall']
         merge_precision += eval_merging_dict['merge_precision']
         #merge_iou += eval_merging_dict['merge_iou']
@@ -149,8 +148,8 @@ if __name__=='__main__':
     data_size = len(dataloader) - not_valid_samples
     print(data_size)
     for k in merge_eval_stats.keys():
-            merge_eval_stats[k] /= data_size
-            merge_eval_state.append('{}: {}'.format(k, merge_eval_stats[k]))
+        merge_eval_stats[k] /= data_size
+        merge_eval_state.append('{}: {}'.format(k, merge_eval_stats[k]))
     print(merge_eval_state) 
     print(evaluator.evaluate(torch.cat(labels_pred, dim = 0), torch.cat(labels_gt, dim = 0)))
 

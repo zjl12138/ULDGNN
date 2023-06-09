@@ -124,7 +124,7 @@ async def generate_single_graph(layer_list : List, output_path, artboard_height,
         assert(w >= 0 and w <= 1)
         assert(h >= 0 and h <= 1)
         #print(root.num)
-        root.insert(bboxNode(root.num, x, y, x + w, x + h))
+        root.insert(bboxNode(root.num, x, y, x + w, y + h))
         types.append(LAYER_CLASS_MAP[layer['class']])
         if layer['label'] == 0:
             labels.append(0)
@@ -222,7 +222,7 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
         elif layer['label'] == 0 :
             merge_state = False
             
-        if len(artboard_json['layers']) <= 40:
+        if len(artboard_json['layers']) <= 200:
             window_layer_list[0].append(layer)
         else:
             center_x, center_y = (x1 + x2) / 2, (y1 + y2) / 2
@@ -234,8 +234,27 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
             window_layer_list[belong_to_which_window].append(layer)
         #layer_img = artboard_img.crop((x1,y1,x2,y2)).resize((64,64),resample=Image.BICUBIC)
         #layer_img_list_id.append([layer['id'], (x1, y1, x2, y2), layer['label']])\
+    new_window_layer_list = []
+    prev_layer_list = []
+    for idx, layer_list in enumerate(window_layer_list):
+        if len(layer_list) == 0:
+            continue
+        # sum += len(layer_list)
+        layer_list.extend(prev_layer_list)
+        prev_layer_list = []         #
+        if len(layer_list) <= 5:  
+            prev_layer_list.extend(layer_list)
+        else:
+            new_window_layer_list.append(layer_list)
+            prev_layer_list = []
+            
+    sum = 0
+    if len(prev_layer_list) != 0:
+        new_window_layer_list[len(new_window_layer_list) - 1].extend(prev_layer_list)
     
-    for layers in window_layer_list:
+    for layers in new_window_layer_list:
+        if len(layers) == 0:
+            continue
         for layer in layers:
             x, y, w, h = layer['layer_rect']
             x1, y1, x2, y2 = clip_val(x, 0,  artboard_width), clip_val(y, 0, artboard_height), clip_val(x + w, 0, artboard_width), clip_val(y + h, 0, artboard_height)
@@ -267,19 +286,17 @@ async def generate_graph(artboard_json, artboard_img:Image,  img_path:str, json_
           
     assest_image.save(os.path.join(output_dir, file_name+"-assets.png"))
     
-    for idx, layer_list in enumerate(window_layer_list):
+    for idx, layer_list in enumerate(new_window_layer_list):
         if len(layer_list) == 0:
             continue
-        # sum += len(layer_list)
-        if len(layer_list) == 1:
-            print(file_name, len(layer_img_list_id), len(window_layer_list), idx)
+        sum += len(layer_list)
         # assert(len(layer_list) > 1)
-        '''await generate_single_graph(layer_list,
+        await generate_single_graph(layer_list,
                         os.path.join(output_dir, file_name+f"-{idx}.json"),
-                        artboard_height,artboard_width, json_path)'''
+                        artboard_height,artboard_width, json_path)
     # print(remove_non_valid_layers, sum ,len(artboard_json['layers']))
     # assert(sum == len(layer_img_list_id))
-    # assert(sum == len(artboard_json['layers']) - remove_non_valid_layers)
+    assert(sum == len(artboard_json['layers']) - remove_non_valid_layers)
           
 def generate_graph_sync(artboard_json, artboard_img, img_path, json_path, output_dir,folder_name):
     return asyncio.run( generate_graph(artboard_json, artboard_img, img_path, json_path, output_dir,folder_name) )
@@ -389,7 +406,7 @@ if __name__=='__main__':
     generate_graphs(idx_mapping, artboard_list, f'{logdir}/log',
                     f'{logdir}/profile',
                     outDir,
-                    max_threads = 8)
+                    max_threads = 16)
     #json.dump(index_train,open(f"{outDir}/index_train.json","w"))
    
     

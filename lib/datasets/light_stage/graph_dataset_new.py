@@ -57,7 +57,7 @@ def read_graph_json(path):
     output: bbox stores (delta_x, delta_y, delta_w, delta_h), bbox + layer_rect is the real bbox size
     '''
     content = json.load(open(path,"r"))
-    return content['layer_rect'],content['edges'], content['bbox'],content['types'],content['labels']
+    return content['layer_rect'], content['edges'], content['bbox'], content['types'], content['labels'], content['offset_in_artboard']
 
 def find_contrast_color(rgb):
     r, g, b = rgb
@@ -84,10 +84,11 @@ class Dataset(data.Dataset):
         #self.train_list = self.train_list[:20]
         self.img_transform = T.Compose([
             T.ToTensor(),
-            # T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         self.bg_color_mode = cfg.bg_color_mode
         self.normalize_coord = False
+        print("graph_dataset_new")
         
     def __len__(self):
         return len(self.train_list)
@@ -128,6 +129,8 @@ class Dataset(data.Dataset):
                 break
             graphs_in_this_arboard.append(iter_json_path)
             iter_idx += 1
+        meta_info = json.load(open(os.path.join(self.root, f'{artboard_idx}/meta.json')))
+        artboard_h, artboard_w, patch_size = meta_info['H'], meta_info['W'], meta_info['patch_size']
             
         #graphs_in_this_arboard = glob.glob(os.path.join(self.root, artboard_idx)+"/*.json")
         #graphs_in_this_arboard.sort()
@@ -160,7 +163,7 @@ class Dataset(data.Dataset):
         #layer_assets = self.img_transform(self.read_img_naive(os.path.join(self.root, artboard_idx,assets_img)))
         elif self.bg_color_mode == 'bg_color_orig':
             if not os.path.exists(os.path.join(self.root, artboard_idx, f"{artboard_idx}-assets_rerefine.png")):
-                #assert(os.path.exists(os.path.join(self.root, artboard_idx, f"{artboard_idx}-assets_rerefine.png")))
+                assert(os.path.exists(os.path.join(self.root, artboard_idx, f"{artboard_idx}-assets_rerefine.png")))
                 path = os.path.join(self.root, artboard_idx, assets_img)
                 img_tensor = T.ToTensor()(Image.open(path).convert('RGBA'))
                 bg_color_list = []
@@ -201,17 +204,23 @@ class Dataset(data.Dataset):
         node_ind_list= []
         for idx, graph_path in enumerate(graphs_in_this_arboard):
             #content['layer_rect'], content['edges'], content['bbox'],content['types'],content['labels']
-            layer_rect, edges, bbox, types, labels = read_graph_json(graph_path)
+            layer_rect, edges, bbox, types, labels, offset = read_graph_json(graph_path)
             layer_rect = torch.FloatTensor(layer_rect)
             orig_layer_rect = layer_rect.clone()
-            if self.normalize_coord:
-                graph_bbox = get_the_bbox_of_cluster(layer_rect)
-                layer_rect[:, 0 : 2] -= graph_bbox[0 : 2]
-                scaling_tensor = torch.cat( (graph_bbox[2 : 4], graph_bbox[2 : 4]), dim = 0)
-                layer_rect /= scaling_tensor
+            
+            orig_layer_rect[:, 2 : 4] -= orig_layer_rect[:, 0 : 2]
+            orig_layer_rect *= patch_size
+            orig_layer_rect[:, 0 : 2] += torch.FloatTensor(offset)
+            orig_layer_rect /= torch.FloatTensor([artboard_w, artboard_h, artboard_w, artboard_h])
             
             edges = torch.LongTensor(edges).transpose(1,0)
             bbox = torch.FloatTensor(bbox)
+            
+            bbox = bbox + layer_rect
+            bbox *= patch_size
+            bbox[:, 0 : 2] += torch.FloatTensor(offset)
+            bbox /= torch.FloatTensor([artboard_w, artboard_h, artboard_w, artboard_h])
+            
             types = torch.LongTensor(types)
             labels = torch.LongTensor(labels)
             node_indices = torch.zeros(layer_rect.shape[0], dtype = torch.int64) + idx

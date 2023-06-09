@@ -128,7 +128,7 @@ async def generate_single_graph(layer_list : List, output_path, artboard_height,
         assert(w >= 0 and w <= 1)
         assert(h >= 0 and h <= 1)
         #print(root.num)
-        root.insert(bboxNode(root.num, x, y, x + w, x + h))
+        root.insert(bboxNode(root.num, x, y, x + w, y + h))
         types.append(LAYER_CLASS_MAP[layer['class']])
         if layer['label'] == 0:
             labels.append(0)

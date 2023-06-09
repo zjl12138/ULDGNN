@@ -94,7 +94,7 @@ async def generate_single_graph(layer_list, output_path, artboard_height, artboa
         assert(h >= 0 and h <= 1)
         layer_rect.append([x, y, w, h])
         #print(root.num)
-        root.insert(bboxNode(root.num, x, y, x + w, x + h))
+        root.insert(bboxNode(root.num, x, y, x + w, y + h))
         types.append(LAYER_CLASS_MAP[layer['_class']])
         
         label = layer['label']
@@ -226,7 +226,7 @@ def generate_graphs(json_list: List[str],
 
 if __name__=='__main__':
     rootdir="/media/sda1/cyn-workspace/CodeBase/sketch-project/sketch_transformer_dataset"
-    outDir = "/media/sda1/ljz-workspace/dataset/EGFE_graph_dataset/"
+    outDir = "/media/sda1/ljz-workspace/dataset/EGFE_graph_dataset_refine/"
     os.makedirs(outDir, exist_ok=True)
     indexes = 4606
     json_list = [] 

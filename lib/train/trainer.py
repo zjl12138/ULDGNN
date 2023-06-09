@@ -1,3 +1,4 @@
+from logging import root
 from locale import DAY_1
 import json
 from symbol import eval_input
@@ -51,8 +52,8 @@ class Trainer(object):
         self.network = network
         self.anchor_box_wh = torch.tensor([[16.0, 8.0], [16.0, 16.0], [16.0, 32.0],
                                            [64.0, 32.0], [64.0, 64.0], [64.0, 128.0],
-                                           [256.0, 128.0], [256.0, 256.0], [512.0, 512.0]], dtype = torch.float32).to(self.device) / 750.0
-        #self.anchor_box_wh = torch.tensor([[sqrt(16.0 * 8.0) * 2, sqrt(16.0 * 8.0)], [16.0, 16.0], [sqrt(16.0 * 8.0), 2 * sqrt(16.0 * 8.0)],
+                                          [256.0, 128.0], [256.0, 256.0], [512.0, 512.0]], dtype = torch.float32).to(self.device) / 750.0
+        # self.anchor_box_wh = torch.tensor([[sqrt(16.0 * 8.0) * 2, sqrt(16.0 * 8.0)], [16.0, 16.0], [sqrt(16.0 * 8.0), 2 * sqrt(16.0 * 8.0)],
         #                                   [sqrt(128.0 * 64.0) * 2, sqrt(128.0 * 64.0)], [128.0, 128.0], [sqrt(128.0 * 64.0), 2 * sqrt(128.0 * 64.0)],
         #                                   [sqrt(128.0 * 256.0) * 2, sqrt(128.0 * 256.0)], [256.0, 256.0], [sqrt(128.0 * 256.0), 2 * sqrt(128.0 * 256.0)]], dtype = torch.float32).to(self.device) / 375.0
 
@@ -118,6 +119,95 @@ class Trainer(object):
                 # record loss_stats and image_dict
                 recorder.record('train')
     
+    def process_layer_coord(self, orig_layer_rect, patch_size, offsets_in_artboard, artboard_size):
+        orig_layer_rect[:, 2 : 4] -= orig_layer_rect[:, 0 : 2]
+        orig_layer_rect *= patch_size
+        orig_layer_rect[:, 0 : 2] += offsets_in_artboard
+        orig_layer_rect /= artboard_size
+        return orig_layer_rect
+        
+    def process_output_data_uldgnn(self, output, layer_rects_gt, labels, bboxes_gt, node_indices, file_list):
+        # we need to transforme the coordinates to match original artboard size
+        offsets_in_artboard = []
+        patch_size = []
+        artboard_size = []
+        rootDir = '/media/sda1/ljz-workspace/dataset/ULDGNN_graph_dataset'
+        meta_infos = []
+        for img_path in file_list:
+            file_path, artboard_name = os.path.split(img_path)
+            artboard_name = artboard_name.split(".")[0]
+            
+            iter_idx = 0
+            meta_info = []
+            tmp_dict = json.load(open(os.path.join(rootDir, artboard_name, "meta.json")))
+            patch_size_tmp, W, H = tmp_dict['patch_size'], tmp_dict['W'], tmp_dict['H']
+            
+            while True:
+                iter_json_path = os.path.join(rootDir, artboard_name, f"{artboard_name}-{iter_idx}.json")
+                if not os.path.exists(iter_json_path):
+                    break
+                tmp_offset = json.load(open(iter_json_path))['offset_in_artboard']
+                meta_info.append([patch_size_tmp, W, H, tmp_offset[0], tmp_offset[1]])
+                iter_idx += 1
+            meta_infos.append(meta_info)
+            
+        for idx in node_indices:
+            patch_size.append([meta_info[idx][0], meta_info[idx][0], meta_info[idx][0], meta_info[idx][0]])
+            offsets_in_artboard.append(meta_info[idx][3 : 5])
+            artboard_size.append([meta_info[idx][1], meta_info[idx][2], meta_info[idx][1], meta_info[idx][2]])
+        
+        patch_size = torch.tensor(patch_size, dtype = torch.float32, device = layer_rects_gt.device)
+        offsets_in_artboard = torch.tensor(offsets_in_artboard, dtype = torch.float32, device = layer_rects_gt.device)
+        artboard_size = torch.tensor(artboard_size, dtype = torch.float32, device = layer_rects_gt.device)
+            
+        logits, centers, local_params, confidence, _ = output #output: (logits, centers, bboxes)
+        cls_scores, pred = torch.max(F.softmax(logits, dim = 1), 1)
+        
+        bboxes_gt += layer_rects_gt
+        bboxes_gt[:, 2 : 4] += bboxes_gt[:, 0 : 2]
+        
+        bboxes_gt = self.process_layer_coord(bboxes_gt, patch_size, offsets_in_artboard, artboard_size)
+        layer_rects_gt = self.process_layer_coord(layer_rects_gt, patch_size, offsets_in_artboard, artboard_size)
+
+        fragmented_layers_gt = layer_rects_gt[labels == 1]
+        fragmented_layers_pred = layer_rects_gt[pred == 1]
+            
+        '''
+        merging_groups_pred = local_params[labels == 1] 
+        scores = scores[labels == 1]
+        '''
+        local_params[:, 2 : 4] += local_params[:, 0 : 2]
+        local_params = self.process_layer_coord(local_params, patch_size, offsets_in_artboard, artboard_size)
+        merging_groups_pred = local_params[pred == 1] 
+    
+         
+        merging_groups_pred_mask = contains(merging_groups_pred, layer_rects_gt[pred == 1])
+
+        if confidence is not None:
+            scores = cls_scores[pred == 1]
+            merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred, scores, threshold = 0.45)
+
+        else:
+            scores = confidence[pred == 1]
+            #mask = torch.logical_and(scores >= 0.8, merging_groups_pred_mask) 
+            #merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred[mask], scores[mask], threshold=0.4)
+            merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred, scores, threshold=0.4)
+
+        merging_groups_gt = bboxes_gt[labels == 1]
+    
+        return {
+                'layer_rects': layer_rects_gt,
+                'fragmented_layers_gt': fragmented_layers_gt,
+                'fragmented_layers_pred': fragmented_layers_pred,
+                'merging_groups_gt': merging_groups_gt,
+                'merging_groups_pred': merging_groups_pred,
+                'merging_groups_pred_nms': merging_groups_pred_nms,
+                'label_pred': pred,
+                'centers_pred': centers[pred == 1, :],
+                'merging_groups_confidence': merging_groups_confidence
+               }
+        pass
+    
     def process_output_data(self, output, layer_rects_gt, labels, bboxes_gt):
         logits, centers, local_params, confidence, _ = output #output: (logits, centers, bboxes)
         cls_scores, pred = torch.max(F.softmax(logits, dim = 1), 1)
@@ -132,7 +222,7 @@ class Trainer(object):
         
         merging_groups_pred_mask = contains(merging_groups_pred, layer_rects_gt[pred == 1])
 
-        if confidence is None:
+        if confidence is not None:
             scores = cls_scores[pred == 1]
             merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred, scores, threshold = 0.45)
 
@@ -152,7 +242,8 @@ class Trainer(object):
                 'merging_groups_pred_nms': merging_groups_pred_nms,
                 'label_pred': pred,
                 'centers_pred': centers[pred==1, :],
-                'merging_groups_confidence': merging_groups_confidence
+                'merging_groups_confidence': merging_groups_confidence,
+                'layer_rects': layer_rects_gt,
                }
 
     def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False, eval_merge = False, eval_ap = False):
@@ -191,14 +282,16 @@ class Trainer(object):
                     val_metric_stats.setdefault(k, 0)
                     val_metric_stats[k] += v
                 '''
-                fetch_data = self.process_output_data(output, layer_rects, labels, bboxes)
+                # fetch_data = self.process_output_data(output, layer_rects, labels, bboxes)
+                fetch_data = self.process_output_data_uldgnn(output, layer_rects, labels, bboxes, node_indices, file_list)
+                
                 fragmented_layers_gt = fetch_data['fragmented_layers_gt']
                 fragmented_layers_pred = fetch_data['fragmented_layers_pred']
                 merging_groups_gt = fetch_data['merging_groups_gt']
                 merging_groups_pred = fetch_data['merging_groups_pred']
                 merging_groups_pred_nms = fetch_data['merging_groups_pred_nms']
                 merging_groups_confidence = fetch_data['merging_groups_confidence']
-                
+                layer_rects = fetch_data['layer_rects']
                 label_pred = fetch_data['label_pred']
                 merging_groups_gt_nms, _ = nms_merge(merging_groups_gt, torch.ones(merging_groups_gt.shape[0], device = merging_groups_gt.device))
                 
@@ -218,7 +311,7 @@ class Trainer(object):
                 if eval_ap:
                     if len(merging_groups_pred_nms) and len(merging_groups_gt_nms):
                         
-                        file_path, artboard_name = os.path.split(batch[7][0])
+                        file_path, artboard_name = os.path.split(file_list[0])
                         artboard_name = artboard_name.split(".")[0]
                         data_dict = json.load(open(f'/media/sda1/ljz-workspace/dataset/graph_dataset_rerefine_copy/{artboard_name}/{artboard_name}-{0}.json'))
                         W, H = data_dict["artboard_width"], data_dict["artboard_height"]
@@ -242,19 +335,19 @@ class Trainer(object):
 
                 if visualizer is not None:
                     '''
-                    visualizer.visualize_pred(fragmented_layers_pred, merging_groups_pred, batch[7][0])
-                    #visualizer.visualize_nms(merging_groups_pred_nms, batch[7][0])
-                    visualizer.visualize_nms_with_labels(merging_groups_pred_nms, merging_groups_confidence, batch[7][0])
+                    visualizer.visualize_pred(fragmented_layers_pred, merging_groups_pred, file_list[0])
+                    #visualizer.visualize_nms(merging_groups_pred_nms, file_list[0])
+                    visualizer.visualize_nms_with_labels(merging_groups_pred_nms, merging_groups_confidence, file_list[0])
                     
                     if len(merging_groups_pred_nms) != 0:
                         merging_groups_pred_nms, merging_groups_confidence = refine_merging_bbox(torch.vstack(merging_groups_pred_nms), layer_rects, label_pred, merging_groups_confidence, types)
-                        visualizer.visualize_nms_with_labels(merging_groups_pred_nms, merging_groups_confidence, batch[7][0], mode = "bbox_refine")
+                        visualizer.visualize_nms_with_labels(merging_groups_pred_nms, merging_groups_confidence, file_list[0], mode = "bbox_refine")
                         #det_results.append([np.vstack([scale_to_img(t.cpu().numpy(), H, W) for t in merging_groups_pred_nms])])
                         
-                    visualizer.visualize_gt(fragmented_layers_gt, merging_groups_gt, batch[7][0])
-                    visualizer.visualize_offset_of_centers(centers_pred, fragmented_layers_pred, batch[7][0])
+                    visualizer.visualize_gt(fragmented_layers_gt, merging_groups_gt, file_list[0])
+                    visualizer.visualize_offset_of_centers(centers_pred, fragmented_layers_pred, file_list[0])
                     '''
-                    visualizer.visualize_overall(fetch_data, layer_rects, types, batch[7][0])
+                    visualizer.visualize_overall(fetch_data, layer_rects, types, file_list[0])
         val_metric_stats = evaluator.evaluate(torch.cat(pred_list), torch.cat(label_list))
         data_size -= not_valid_samples
         loss_state = []
@@ -283,81 +376,7 @@ class Trainer(object):
             torch.save(gt_annotations, "gt_annotation.pkl")
             torch.save(det_results, "det_results.pkl")
         return val_metric_stats
-
-    '''def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False):
-        self.network.eval()
-        torch.cuda.empty_cache()
-        val_loss_stats = {}
-        data_size = len(data_loader)
-        val_metric_stats = {}
-        pred_list = []
-        label_list = []
-
-        check_records = {}
-
-        for batch in tqdm.tqdm(data_loader):
-            batch = self.to_cuda(list(batch))
-            layer_rects, edges, types,  img_tensor, labels, bboxes, node_indices, file_list = batch
-            with torch.no_grad():
-                output, loss, loss_stats = self.network(batch)
-                #val_stats = evaluator.evaluate(output, batch[4])
-                loss_stats = self.reduce_loss_stats(loss_stats)
-                
-                for k, v in loss_stats.items():
-                    val_loss_stats.setdefault(k, 0)
-                    val_loss_stats[k] += v
-                
-               
-                #for k, v in val_stats.items():
-                #    val_metric_stats.setdefault(k, 0)
-                #    val_metric_stats[k] += v
-            
-                logits, local_params = output
-                scores, pred = torch.max(F.softmax(logits,dim=1), 1)
-            
-                #print(layer_rects.shape, pred.shape, labels)
-                pred_fraglayers = layer_rects[pred==1]
-                pred_merging_groups = local_params[pred==1]
-                scores = scores [pred==1]
-
-                pred_bboxes = pred_merging_groups + pred_fraglayers
-                bbox_results = nms_merge(pred_bboxes, scores, threshold=0.45)
-                
-                if val_nms:
-                    #prev_pred = pred
-                    pred = evaluator.correct_pred_with_nms(pred, bbox_results, layer_rects, types, threshold=0.45) 
-                    #print(f"correct {torch.sum(pred!=prev_pred)}wrong preditions")
-
-                pred_list.append(pred)
-                label_list.append(labels) 
-
-                if visualizer is not None:
-                    visualizer.visualize_pred(pred_fraglayers, pred_merging_groups,batch[7][0])
-                    visualizer.visualize_nms(bbox_results.cpu(),batch[7][0])
-                    
-                    fragmented_layers = layer_rects[labels==1]
-                    merging_groups = bboxes[labels == 1 ]
-                    visualizer.visualize_gt(fragmented_layers, merging_groups, batch[7][0])
-                    #visualizer.visualize_nms(scores.cpu(), fragmented_layers.cpu(), merging_groups.cpu(),batch[6][0])
-                    
-        val_metric_stats = evaluator.evaluate(torch.cat(pred_list), torch.cat(label_list))
-
-        loss_state = []
-        metric_state = []
-        for k in val_loss_stats.keys():
-            val_loss_stats[k] /= data_size
-            loss_state.append('{}: {:.4f}'.format(k, val_loss_stats[k]))
-        for k in val_metric_stats.keys():
-            #val_metric_stats[k] /= data_size
-            metric_state.append('{}: {:.4f}'.format(k, val_metric_stats[k]))
-        print(loss_state,metric_state)
-
-        if recorder:
-            recorder.record('val', epoch, val_loss_stats)
-            recorder.record('val', epoch, val_metric_stats)
-
-        return val_metric_stats
-    '''
+    
     def check_with_human_in_loop(self, epoch, data_loader, evaluator:Evaluator, 
                                 recorder:Recorder, visualizer:visualizer=None, val_nms=False):
         self.network.eval()
@@ -372,7 +391,7 @@ class Trainer(object):
 
         for batch in tqdm.tqdm(data_loader):
             batch = self.to_cuda(list(batch))
-            layer_rects, edges, types, img_tensor, labels, bboxes, node_indices, file_list = batch
+            layer_rects_, edges, types, img_tensor, labels, bboxes, layer_rects, node_indices, file_list = batch
             #print(node_indices)
             rootDir, artboard_idx = os.path.split(file_list[0])
             artboard_idx = artboard_idx.split(".")[0]

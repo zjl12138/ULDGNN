@@ -407,11 +407,14 @@ class Network(nn.Module):
             cfg.gnn_fn.edge_dim = self.edge_dim
         else:
             cfg.gnn_fn.edge_dim = 0
-
-        self.pos_embedder = PosEmbedder(cfg.pos_embedder)
-        self.type_embedder = TypeEmbedder(cfg.type_embedder)
-        self.img_embedder = ImageEmbedder(cfg.img_embedder)
         
+        self.feat_embed_module = []
+        if not cfg.remove_pos:
+            self.pos_embedder = PosEmbedder(cfg.pos_embedder)
+        if not cfg.remove_type:
+            self.type_embedder = TypeEmbedder(cfg.type_embedder)
+        if not cfg.remove_img:
+            self.img_embedder = ImageEmbedder(cfg.img_embedder)
         #cfg.gnn_fn.edge_dim = self.pos_embedder.in_dim
         
         self.gnn_fn = make_gnn(cfg.gnn_fn.gnn_type)(cfg.gnn_fn)
@@ -528,8 +531,8 @@ class Network(nn.Module):
         confidence, confidence_argmax = torch.max(confidence_reshape, dim = 1)
         centroids = centroids.reshape(-1, 2 * 9)
         bboxes = bboxes.reshape(-1, 4 * 9)
-        centroids = torch.cat([torch.gather(centroids, 1, confidence_argmax.unsqueeze(1) + i) for i in range(2)], dim = 1)
-        centroids = torch.cat([torch.gather(bboxes, 1, confidence_argmax.unsqueeze(1) + i) for i in range(4)], dim = 1)
+        centroids = torch.cat([torch.gather(centroids, 1, confidence_argmax.unsqueeze(1) * 2 + i) for i in range(2)], dim = 1)
+        bboxes = torch.cat([torch.gather(bboxes, 1, confidence_argmax.unsqueeze(1) * 4 + i) for i in range(4)], dim = 1)
         return (logits, centroids, bboxes, confidence, voting_offset)
 
     def loss(self, output, gt, anchor_box_wh = None):
@@ -564,7 +567,7 @@ class Network(nn.Module):
             #print(if_pred_bbox_contain_layer.all())
         #local_params = local_params + layer_rects
 
-        bboxes = bboxes + layer_rects
+        bboxes = bboxes + layer_rects  # because in our dataset we save [bbox_gt - layer_rect]
         bboxes_center = bboxes[:, 0 : 2] + bboxes[:, 2 : 4] * 0.5
         if 'anchor' in self.bbox_regression_type:
             bboxes = bboxes.repeat(1, 9).reshape(-1, 4)
@@ -601,15 +604,23 @@ class Network(nn.Module):
         return loss, loss_stats
 
     def forward(self, batch, anchor_box_wh = None):
-        #nodes, edges, types,  img_tensor, labels, bboxes, node_indices, file_list
+        # nodes, edges, types,  img_tensor, labels, bboxes, node_indices, file_list
         layer_rect, edges, classes, images, labels, bboxes, _, node_indices, _ = batch
-        pos_embedding = self.pos_embedder(layer_rect)
-        type_embedding = self.type_embedder(classes)
-        img_embedding = self.img_embedder(images)
-        #print(pos_embedding.shape, type_embedding.shape, img_embedding.shape)
-        #batch_embedding = self.pos_embedder(layer_rect)+self.type_embedder(classes)+self.img_embedder(images)
-        batch_embedding = pos_embedding + type_embedding + img_embedding
-        #batch_embedding = type_embedding + img_embedding
+
+        batch_embedding = 0.0
+        if not cfg.remove_pos:
+            pos_embedding = self.pos_embedder(layer_rect)
+            batch_embedding = batch_embedding + pos_embedding
+        if not cfg.remove_type:
+            type_embedding = self.type_embedder(classes)
+            batch_embedding = batch_embedding + type_embedding
+        if not cfg.remove_img:
+            img_embedding = self.img_embedder(images)
+            batch_embedding = batch_embedding + img_embedding
+        # print(pos_embedding.shape, type_embedding.shape, img_embedding.shape)
+        # batch_embedding = self.pos_embedder(layer_rect)+self.type_embedder(classes)+self.img_embedder(images)
+        # batch_embedding = pos_embedding + type_embedding + img_embedding
+        # batch_embedding = type_embedding + img_embedding
 
         edge_attr = None
         if cfg.gnn_fn.local_gnn_type == 'GINEConv' or cfg.gnn_fn.local_gnn_type == 'GATConv' or cfg.gnn_fn.local_gnn_type == 'PNAConv':
