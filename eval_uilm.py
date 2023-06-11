@@ -40,25 +40,28 @@ def get_merging_components_transformer(pred_label : torch.Tensor):
     return merging_list
 
 def process_bbox_result():
-    bbox_dict = json.load(open("bbox_result_egfe_data_resplit.json"))
+    bbox_dict = json.load(open("bbox_result_uldgraph.json"))
     new_bbox_dict = {}
     for key in bbox_dict.keys():
         artboard_name, _, x_window, y_window = key.split("/")[0].split("-")
         new_bbox_dict.setdefault(artboard_name, [])
         new_bbox_dict[artboard_name].append({x_window + "-" + y_window : bbox_dict[key]})
-    json.dump(new_bbox_dict, open("new_bbox_result_egfe_data_resplit", "w"))
+    json.dump(new_bbox_dict, open("new_bbox_result_uldgraph", "w"))
     return new_bbox_dict
 
 if __name__=='__main__':
+    cfg.test_dataset.module = 'lib.datasets.light_stage.graph_dataset_new'
+    cfg.test_dataset.path = 'lib/datasets/light_stage/graph_dataset_new.py'
+    
     cfg.test.batch_size = 1
-    cfg.test_dataset.rootDir = '../../dataset/EGFE_graph_dataset'
-    cfg.test_dataset.index_json = 'index_testv2.json'
+    cfg.test_dataset.rootDir = '../../dataset/ULDGNN_graph_dataset'
+    cfg.test_dataset.index_json = 'index_test_based_on_sketch.json'
     cfg.test_dataset.bg_color_mode = 'bg_color_orig'
     dataloader = make_data_loader(cfg,is_train = False)
     vis = visualizer(cfg.visualizer)
     evaluator = Evaluator()
     print(len(dataloader))
-    #trainer.train(0, dataloader, optim, recorder, evaluator )
+    # trainer.train(0, dataloader, optim, recorder, evaluator )
     positives = 0
     negatives = 0
     num_of_fragments: List = []
@@ -67,7 +70,7 @@ if __name__=='__main__':
     precision = 0.0
     recall = 0.0
     acc = 0.
-    #result_transformer = json.load(open("bbox_result.json"))
+    # result_transformer = json.load(open("bbox_result.json"))
     labels_pred = []
     labels_gt = []
     merge_recall = 0.0

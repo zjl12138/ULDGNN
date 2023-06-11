@@ -79,7 +79,7 @@ def train(cfg, network, begin_epoch = 0):
         
         if (epoch + 1) % cfg.train.eval_ep == 0:
             if (not cfg.train.is_distributed)  or (cfg.train.local_rank == 0):
-                val_metric_stats = trainer.val(epoch, val_loader, evaluator, recorder, vis if cfg.test.vis_bbox else None, False)
+                val_metric_stats = trainer.val_train(epoch, val_loader, evaluator, recorder, vis if cfg.test.vis_bbox else None, False)
                 
                 if cfg.train.save_best_acc:
                 
@@ -127,6 +127,8 @@ if __name__=='__main__':
     for n, v in network.named_parameters():
         if v.requires_grad:
             print(n)
+    total_sum = sum(p.numel() for p in network.parameters())
+    print(total_sum / 1024 / 1024)
     if cfg.train.load_all_pretrained:
         begin_epoch = load_network(network, cfg.model_dir)
     else:

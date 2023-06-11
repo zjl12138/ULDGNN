@@ -220,6 +220,7 @@ class Dataset(data.Dataset):
             bbox *= patch_size
             bbox[:, 0 : 2] += torch.FloatTensor(offset)
             bbox /= torch.FloatTensor([artboard_w, artboard_h, artboard_w, artboard_h])
+            bbox -= orig_layer_rect
             
             types = torch.LongTensor(types)
             labels = torch.LongTensor(labels)

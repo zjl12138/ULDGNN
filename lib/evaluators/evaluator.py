@@ -51,7 +51,8 @@ class Evaluator:
                }
     
     def correct_pred_with_nms(self, pred,  bbox_results: torch.Tensor, layer_rects:torch.Tensor, types: torch.Tensor, threshold=0.45):
-        not_text = (types != 9) & (types != 13) & (types != 8) & (types != 1) & (types != 0) & (types != 10) & (types != 12)
+        # not_text = (types != 9) & (types != 13) & (types != 8) & (types != 1) & (types != 0) & (types != 10) & (types != 12)
+        not_text = (types != 6)
         '''symbolMaster': 0,
         'group': 1,
         'oval': 2,

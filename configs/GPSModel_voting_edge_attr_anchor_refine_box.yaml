@@ -6,8 +6,8 @@ train:
     save_best_acc: True
     is_distributed: True
     eval_ep: 10
-    batch_size: 4
-    load_all_pretrained: True
+    batch_size: 2
+    load_all_pretrained: False
 
 train_dataset:
     # rootDir: '../../dataset/graph_dataset_rererefine_copy'
@@ -82,3 +82,11 @@ network:
       attn_dropout: 0.2
       layer_norm: True
       batch_norm: False
+    
+    box_refine_fn:
+      box_refine_branch:
+        in_dim:  32768
+        latent_dims: [512, 256]
+        classes: 4   
+        act_fn: 'LeakyReLU'
+        norm_type: ''    

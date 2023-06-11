@@ -204,7 +204,8 @@ class Trainer(object):
                 'merging_groups_pred_nms': merging_groups_pred_nms,
                 'label_pred': pred,
                 'centers_pred': centers[pred == 1, :],
-                'merging_groups_confidence': merging_groups_confidence
+                'merging_groups_confidence': merging_groups_confidence,
+                'bboxes': bboxes_gt
                }
         pass
     
@@ -244,8 +245,77 @@ class Trainer(object):
                 'centers_pred': centers[pred==1, :],
                 'merging_groups_confidence': merging_groups_confidence,
                 'layer_rects': layer_rects_gt,
+                'bboxes': bboxes_gt + layer_rects_gt
                }
+    
+    def val_train(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False, eval_merge = False, eval_ap = False):
 
+        self.network.eval()
+        torch.cuda.empty_cache()
+        val_loss_stats = {}
+        data_size = len(data_loader)
+        val_metric_stats = {}
+        pred_list = []
+        label_list = []
+        check_records = {}
+        eval_merging_acc = 0.0
+
+        gt_annotations = []
+        det_results = []
+        
+        merge_eval_stats = {}
+        not_valid_samples = 0
+        for batch in tqdm.tqdm(data_loader):
+            batch = self.to_cuda(list(batch))
+            layer_rects_, edges, types,  img_tensor, labels, bboxes, layer_rects, node_indices, file_list = batch
+            if torch.sum(labels) == 0:
+                not_valid_samples += 1
+                continue
+            with torch.no_grad():
+                output, loss, loss_stats = self.network(batch, self.anchor_box_wh)
+                #val_stats = evaluator.evaluate(output, batch[4])
+                loss_stats = self.reduce_loss_stats(loss_stats)
+                
+                for k, v in loss_stats.items():
+                    val_loss_stats.setdefault(k, 0)
+                    val_loss_stats[k] += v
+                
+                '''for k, v in val_stats.items():
+                    val_metric_stats.setdefault(k, 0)
+                    val_metric_stats[k] += v
+                '''
+                # fetch_data = self.process_output_data(output, layer_rects, labels, bboxes)
+                logits, centers, local_params, confidence, _ = output #output: (logits, centers, bboxes)
+                cls_scores, label_pred = torch.max(F.softmax(logits, dim = 1), 1)
+                pred_list.append(label_pred)
+                label_list.append(labels) 
+
+        val_metric_stats = evaluator.evaluate(torch.cat(pred_list), torch.cat(label_list))
+        data_size -= not_valid_samples
+        loss_state = []
+        metric_state = []
+        merge_eval_state = []
+        print(data_size)
+        for k in merge_eval_stats.keys():
+            merge_eval_stats[k] /= data_size
+            merge_eval_state.append('{}: {}'.format(k, merge_eval_stats[k]))
+            
+        for k in val_loss_stats.keys():
+            val_loss_stats[k] /= data_size
+            loss_state.append('{}: {:.4f}'.format(k, val_loss_stats[k]))
+        
+        for k in val_metric_stats.keys():
+            #val_metric_stats[k] /= data_size
+            metric_state.append('{}: {:.4f}'.format(k, val_metric_stats[k]))
+        #print(loss_state, metric_state, [{"merging_acc": eval_merging_acc / data_size}])
+        print(loss_state, metric_state, merge_eval_state)
+        
+        if recorder:
+            recorder.record('val', epoch, val_loss_stats)
+            recorder.record('val', epoch, val_metric_stats)
+
+        return val_metric_stats
+    
     def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer:visualizer=None, val_nms=False, eval_merge = False, eval_ap = False):
 
         self.network.eval()
@@ -293,6 +363,7 @@ class Trainer(object):
                 merging_groups_confidence = fetch_data['merging_groups_confidence']
                 layer_rects = fetch_data['layer_rects']
                 label_pred = fetch_data['label_pred']
+                bboxes = fetch_data['bboxes']
                 merging_groups_gt_nms, _ = nms_merge(merging_groups_gt, torch.ones(merging_groups_gt.shape[0], device = merging_groups_gt.device))
                 
                 if val_nms:
@@ -302,7 +373,7 @@ class Trainer(object):
                     #print(f"correct {torch.sum(pred!=prev_pred)}wrong preditions")
                 
                 if eval_merge:
-                    tmp_stats = evaluator.evaluate_merging(merging_groups_pred_nms, label_pred, layer_rects, bboxes + layer_rects, labels)
+                    tmp_stats = evaluator.evaluate_merging(merging_groups_pred_nms, label_pred, layer_rects, bboxes, labels)
                     for k, v in tmp_stats.items():
                         merge_eval_stats.setdefault(k, 0)
                         merge_eval_stats[k] += v

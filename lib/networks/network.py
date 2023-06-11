@@ -13,6 +13,8 @@ from lib.config import cfg as CFG
 import importlib
 import torch.nn.functional as F
 from lib.utils import vote_clustering, vote_clustering_each_layer, IoU
+from torchvision.ops import roi_align
+import os
 
 cfg = CFG.network
 
@@ -48,6 +50,45 @@ class Classifier(nn.Module):
     def forward(self, x, clip_val=False):
         for _, fc_layer in self.named_children():
             x = fc_layer(x)
+        if clip_val:
+            x = torch.nn.Tanh()(x)
+        return x
+
+class Classifier_two_branches(nn.Module):
+    def __init__(self, cfg):
+        super(Classifier, self).__init__()
+        self.in_dim = cfg.in_dim
+        self.latent_dims = cfg.latent_dims
+        self.make(cfg)
+        
+    def make(self, cfg):
+        layer_list = []
+        in_dim = self.in_dim
+        
+        for idx, latent_dim in enumerate(self.latent_dims):
+            self.add_module(
+                            f'loc_{idx}',make_fully_connected_layer(in_dim,
+                                                             latent_dim, 
+                                                             cfg.act_fn, 
+                                                             cfg.norm_type)
+                           )
+            in_dim = latent_dim
+
+        self.add_module(f'loc_{len(self.latent_dims)+1}',make_fully_connected_layer(self.latent_dims[-1],
+                                                          cfg.classes,
+                                                          '', '')) # cfg.classes = 36
+        self.add_module(f'confid_{0}', make_fully_connected_layer(self.in_dim + cfg.classes, cfg.classes // 4,
+                                                          '', ''))
+        
+    def forward(self, x, clip_val = False):
+        x_old = x
+        for layer_name, fc_layer in self.named_children():
+            if 'loc' in layer_name:
+                x = fc_layer(x)
+                loca_params = x
+            elif 'confid' in layer_name:
+                confid_scores = fc_layer(torch.cat([x_old, x], dim = 1))
+        x = torch.cat([loca_params, confid_scores], dim = 1)
         if clip_val:
             x = torch.nn.Tanh()(x)
         return x
@@ -373,9 +414,34 @@ class GPSModel_with_voting_v(nn.Module):#not used
             else:
                 padding_zeros = padding_zeros + layer(x)
         x = torch.cat((padding_zeros, x), dim = 1)
-      
+
         del padding_zeros
         return x 
+
+class box_refine_module(nn.Module):
+    def __init__(self, cfg):
+        super(box_refine_module, self).__init__()
+        self.make(cfg)
+        self.roi_size = 4
+        
+    def make(self, cfg):
+        self.box_refine_branch = Classifier(cfg.box_refine_branch)
+    
+    def forward(self, img_tensors, node_indices, box_tensors : torch.Tensor):
+        B, C, H, W = img_tensors.shape 
+        box_tensors_old = box_tensors
+        box_tensors[:, 2 : 4] += box_tensors[:, 0 : 2]
+        box_tensors = box_tensors.clamp(0, 1)
+        box_tensors *= torch.tensor([W, H, W, H], device = box_tensors.device)
+        roi_align_feats = roi_align(
+            img_tensors,
+            torch.cat([node_indices.unsqueeze(1), box_tensors], dim = 1),
+            output_size = self.roi_size,
+            sampling_ratio = 2 
+        )
+        offsets = self.box_refine_branch(roi_align_feats.flatten(1))
+        return box_tensors_old + offsets
+        
 
 class Network(nn.Module):
     def __init__(self):
@@ -423,7 +489,7 @@ class Network(nn.Module):
         self.loc_type = cfg.loc_fn.loc_type
         self.gnn_type = cfg.gnn_fn.gnn_type
         print("loc_fn_type: ", cfg.loc_fn.loc_type)
-        
+        self.refine_box_module: box_refine_module = None
         if cfg.loc_fn.loc_type == 'classifier_with_gnn':
             self.loc_fn = Classifier_with_gnn(cfg.loc_fn) 
         else:
@@ -432,12 +498,15 @@ class Network(nn.Module):
             print("fix cls branch!")
             self.fix_network(self.cls_fn)
         elif cfg.train_mode == 2:
-            print("train localizaiton branch only!")
+            print("train refine branch only!")
             self.fix_network(self.pos_embedder)
             self.fix_network(self.type_embedder)
             self.fix_network(self.img_embedder)
             self.fix_network(self.gnn_fn)
             self.fix_network(self.cls_fn)
+            self.fix_network(self.loc_fn)
+            self.refine_box_module = box_refine_module(cfg.box_refine_fn)
+            
         elif cfg.train_mode == 1:
             print("fix localization branch!")
             self.fix_network(self.loc_fn)
@@ -603,9 +672,39 @@ class Network(nn.Module):
         loss_stats['loss'] =  loss
         return loss, loss_stats
 
+    def refine_box_loss(self, refine_boxes, gt):  
+        layer_rects, labels, bboxes = gt
+        training_mask = (labels == 1)
+        
+        if torch.sum(training_mask) != 0:
+            bboxes = bboxes[training_mask]
+            layer_rects = layer_rects[training_mask]
+            refine_boxes = refine_boxes[training_mask]
+        
+        loss_stats = {}
+        
+        bboxes = bboxes + layer_rects # problems in development history: we actually store box_size - layer_rect in the dataset, so here we need to add the layer_rect back to get correct box_sizes
+        loss = self.reg_loss_fn(refine_boxes, bboxes)
+        loss_stats['refine_box_loss'] = loss
+        return loss, loss_stats
+
+    def prepare_img_tensors(self, device, file_list):
+        img_tensor_list = []
+        for path in file_list:
+            dataset_dir, artboard_name = os.path.split(path)
+            artboard_name = artboard_name.split(".")[0]
+            jdx = 0
+            while True:
+                img_tensor_path = os.path.join(dataset_dir, f'{artboard_name}-{jdx}.pt')
+                if not os.path.exists(img_tensor_path):
+                    break
+                img_tensor_list.append(torch.load(img_tensor_path, map_location = device))
+                jdx += 1
+        return torch.vstack(img_tensor_list)
+
     def forward(self, batch, anchor_box_wh = None):
         # nodes, edges, types,  img_tensor, labels, bboxes, node_indices, file_list
-        layer_rect, edges, classes, images, labels, bboxes, _, node_indices, _ = batch
+        layer_rect, edges, classes, images, labels, bboxes, _, node_indices, file_list = batch
 
         batch_embedding = 0.0
         if not cfg.remove_pos:
@@ -664,13 +763,25 @@ class Network(nn.Module):
             loc_params = voting_offset + loc_params
 
         #print(logits.shape, loc_params.shape)
-        loss, loss_stats = self.loss([logits, loc_params, confidence, voting_offset], 
-                                     [layer_rect, labels, bboxes], anchor_box_wh)
-        
-        if self.loc_type == 'classifier_with_anchor':
-            return self.anchor_process(self.process_output_data((logits, loc_params, confidence, voting_offset), layer_rect, anchor_box_wh)), loss, loss_stats
-        return self.process_output_data((logits, loc_params, confidence, voting_offset), layer_rect, anchor_box_wh), loss, loss_stats
-
+        if self.refine_box_module is None:
+            loss, loss_stats = self.loss([logits, loc_params, confidence, voting_offset], 
+                                        [layer_rect, labels, bboxes], anchor_box_wh)
+            
+            if self.loc_type == 'classifier_with_anchor':
+                return self.anchor_process(self.process_output_data((logits, loc_params, confidence, voting_offset), layer_rect, anchor_box_wh)), loss, loss_stats
+            return self.process_output_data((logits, loc_params, confidence, voting_offset), layer_rect, anchor_box_wh), loss, loss_stats
+        else:
+            logits, centroids, pred_bboxes, confidence, voting_offset = self.anchor_process(
+                self.process_output_data((logits, loc_params, confidence, voting_offset),  layer_rect, anchor_box_wh))
+            img_tensors = self.prepare_img_tensors(bboxes.device, file_list)
+            print(img_tensors.requires_grad)
+            # print(img_tensors.shape, node_indices.shape, bboxes.shape)
+            refine_bboxes = self.refine_box_module(img_tensors, node_indices[labels == 1], pred_bboxes[labels == 1])
+            # torch.masked_fill(pred_bboxes, labels == 1, refine_bboxes)
+            pred_bboxes[labels == 1, :] = refine_bboxes 
+            loss, loss_stats = self.refine_box_loss(pred_bboxes, [layer_rect, labels, bboxes])
+            return (logits, centroids, pred_bboxes, confidence, voting_offset), loss, loss_stats
+            
 if __name__=='__main__':
     network = Network()
     print(network)

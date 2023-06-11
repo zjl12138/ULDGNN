@@ -4,9 +4,9 @@ import os
 def save_model(net, optim, scheduler, recorder, model_dir, epoch, last=False):
     model = {
         'net': net.state_dict(),
-        'optim': optim.state_dict(),
-        'scheduler': scheduler.state_dict(),
-        'recorder': recorder.state_dict(),
+        # 'optim': optim.state_dict(),
+        # 'scheduler': scheduler.state_dict(),
+        # 'recorder': recorder.state_dict(),
         'epoch': epoch
     }
     if last:
@@ -119,7 +119,7 @@ def load_partial_network(net, model_dir, resume=True, epoch=-1, strict=True):
     else:
         model_path = model_dir
 
-    print('load model: {}'.format(model_path))
+    print('load partial model: {}'.format(model_path))
     save_dict = torch.load(model_path)
     pretrained_model = save_dict['net']
     model_dict = net.state_dict()
@@ -128,9 +128,8 @@ def load_partial_network(net, model_dir, resume=True, epoch=-1, strict=True):
         keys.append(k)
     i = 0
     for k, v in model_dict.items():
-        if keys[i] in pretrained_model.keys() and v.size() == pretrained_model[keys[i]].size():
-            model_dict[k] = pretrained_model[keys[i]]
-            i = i + 1
+        if k in pretrained_model.keys() and v.size() == pretrained_model[k].size():
+            model_dict[k] = pretrained_model[k]
         else:
             print(f"not found {keys[i]} or {keys[i]}'s size not matched")
     net.load_state_dict(model_dict)

@@ -40,8 +40,8 @@ def random_color(n_colors):
 
 if __name__=='__main__':
     cfg.test.batch_size = 1
-    mode = 'testv2'
-    cfg.test_dataset.rootDir = '../../dataset/EGFE_graph_dataset'
+    mode = 'train_based_on_sketch'
+    cfg.test_dataset.rootDir = '../../dataset/graph_dataset_rererefine_copy'
     cfg.test_dataset.index_json = f'index_{mode}.json'
     cfg.test_dataset.bg_color_mode = 'keep_alpha'
     dataloader = make_data_loader(cfg, is_train=False)
@@ -61,9 +61,9 @@ if __name__=='__main__':
     labels_gt = []
     merge_recall = 0.0
     merge_precision = 0.0 
-    save_img_folder = os.path.join("../../dataset/UILM_from_egfe_resplit/", mode, "images")
-    save_label_folder = os.path.join("../../dataset/UILM_from_egfe_resplit/", mode, "labels")
-    labeld_artboard_folder = os.path.join("../../dataset/UILM_from_egfe_resplit/tmp", "images")
+    save_img_folder = os.path.join("../../dataset/UILM/", mode, "images")
+    save_label_folder = os.path.join("../../dataset/UILM/", mode, "labels")
+    labeld_artboard_folder = os.path.join("../../dataset/UILM/tmp", "images")
     os.makedirs(save_img_folder, exist_ok = True)
     os.makedirs(save_label_folder, exist_ok = True)
     os.makedirs(labeld_artboard_folder, exist_ok = True)

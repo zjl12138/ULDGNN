@@ -73,6 +73,6 @@ if __name__=='__main__':
     
         vis.visualize_recon_artboard(nodes, img_tensors, file_list[0])
         vis.visualize_pred_fraglayers(nodes, file_list[0], save_file=True)
-        # bboxes = bboxes + nodes
+        bboxes = bboxes + nodes
         vis.visualize_nms(bboxes[labels == 1], file_list[0], save_file = True)
         

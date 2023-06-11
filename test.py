@@ -46,7 +46,7 @@ if __name__=='__main__':
     #cfg.test.vis_bbox = True
     cfg.train.is_distributed = False
     cfg.train.local_rank = 1
-    cfg.test.vis_bbox = True
+    cfg.test.vis_bbox = False
     cfg.test.eval_merge = True
     cfg.test.eval_ap = False
     cfg.test.val_nms = False
