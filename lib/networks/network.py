@@ -422,7 +422,7 @@ class box_refine_module(nn.Module):
     def __init__(self, cfg):
         super(box_refine_module, self).__init__()
         self.make(cfg)
-        self.roi_size = 4
+        self.roi_size = cfg.roi_size
         
     def make(self, cfg):
         self.box_refine_branch = Classifier(cfg.box_refine_branch)
@@ -693,13 +693,19 @@ class Network(nn.Module):
         for path in file_list:
             dataset_dir, artboard_name = os.path.split(path)
             artboard_name = artboard_name.split(".")[0]
-            jdx = 0
-            while True:
-                img_tensor_path = os.path.join(dataset_dir, f'{artboard_name}-{jdx}.pt')
-                if not os.path.exists(img_tensor_path):
-                    break
+            if '-' not in artboard_name: # if artboard_name is artboard_id.
+                #artboard_name = artboard_name.split("-")[0]
+                jdx = 0
+                while True:
+                    img_tensor_path = os.path.join(dataset_dir, f'{artboard_name}-{jdx}.pt')
+                    if not os.path.exists(img_tensor_path):
+                        break
+                    img_tensor_list.append(torch.load(img_tensor_path, map_location = device))
+                    jdx += 1
+            else: # if artboard_name is artboard_id-idx
+                img_tensor_path = os.path.join(dataset_dir, f'{artboard_name}.pt')
+                assert(os.path.exists(img_tensor_path))
                 img_tensor_list.append(torch.load(img_tensor_path, map_location = device))
-                jdx += 1
         return torch.vstack(img_tensor_list)
 
     def forward(self, batch, anchor_box_wh = None):
@@ -774,7 +780,7 @@ class Network(nn.Module):
             logits, centroids, pred_bboxes, confidence, voting_offset = self.anchor_process(
                 self.process_output_data((logits, loc_params, confidence, voting_offset),  layer_rect, anchor_box_wh))
             img_tensors = self.prepare_img_tensors(bboxes.device, file_list)
-            print(img_tensors.requires_grad)
+            # print(img_tensors.requires_grad)
             # print(img_tensors.shape, node_indices.shape, bboxes.shape)
             refine_bboxes = self.refine_box_module(img_tensors, node_indices[labels == 1], pred_bboxes[labels == 1])
             # torch.masked_fill(pred_bboxes, labels == 1, refine_bboxes)

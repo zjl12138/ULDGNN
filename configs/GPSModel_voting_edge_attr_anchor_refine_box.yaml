@@ -6,11 +6,13 @@ train:
     save_best_acc: True
     is_distributed: True
     eval_ep: 10
-    batch_size: 2
+    batch_size: 6
     load_all_pretrained: False
 
 train_dataset:
     # rootDir: '../../dataset/graph_dataset_rererefine_copy'
+    module: 'lib.datasets.light_stage.graph_dataset_small_batch'
+    path: 'lib/datasets/light_stage/graph_dataset_small_batch.py'
     rootDir: '../../dataset/ULDGNN_graph_dataset'
     index_json: 'index_train_based_on_sketch.json'
     bg_color_mode: 'bg_color_orig'
@@ -84,9 +86,10 @@ network:
       batch_norm: False
     
     box_refine_fn:
+      roi_size: 7
       box_refine_branch:
-        in_dim:  32768
-        latent_dims: [512, 256]
+        in_dim:  100352
+        latent_dims: [4096, 2048]
         classes: 4   
         act_fn: 'LeakyReLU'
         norm_type: ''    
