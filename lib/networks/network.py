@@ -694,7 +694,7 @@ class Network(nn.Module):
             dataset_dir, artboard_name = os.path.split(path)
             artboard_name = artboard_name.split(".")[0]
             if '-' not in artboard_name: # if artboard_name is artboard_id.
-                #artboard_name = artboard_name.split("-")[0]
+                # artboard_name = artboard_name.split("-")[0]
                 jdx = 0
                 while True:
                     img_tensor_path = os.path.join(dataset_dir, f'{artboard_name}-{jdx}.pt')
@@ -784,7 +784,7 @@ class Network(nn.Module):
             # print(img_tensors.shape, node_indices.shape, bboxes.shape)
             refine_bboxes = self.refine_box_module(img_tensors, node_indices[labels == 1], pred_bboxes[labels == 1])
             # torch.masked_fill(pred_bboxes, labels == 1, refine_bboxes)
-            pred_bboxes[labels == 1, :] = refine_bboxes 
+            pred_bboxes[labels == 1, :] = refine_bboxes
             loss, loss_stats = self.refine_box_loss(pred_bboxes, [layer_rect, labels, bboxes])
             return (logits, centroids, pred_bboxes, confidence, voting_offset), loss, loss_stats
             

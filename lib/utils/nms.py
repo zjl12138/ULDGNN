@@ -199,7 +199,7 @@ def merging_components(merging_groups_pred_nms,  layer_rects, pred_labels, mergi
     sort_idx = torch.argsort(areas, descending = False)
     merging_groups_pred_nms = merging_groups_pred_nms[sort_idx]  
     results = []
-    prev_mask = (torch.zeros(layer_rects.shape[0], device = layer_rects.get_device() if layer_rects.get_device() > 0 else torch.device("cpu")) > 1)
+    prev_mask = (torch.zeros(layer_rects.shape[0], device = layer_rects.device) > 1)
     for merging_rect in merging_groups_pred_nms:
         iou = contains_how_much(merging_rect.unsqueeze(0), layer_rects)
         cur_mask = torch.logical_and(~prev_mask, iou > 0.7) & (pred_labels == 1)

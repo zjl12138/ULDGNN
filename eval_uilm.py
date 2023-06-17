@@ -46,7 +46,7 @@ def process_bbox_result():
         artboard_name, _, x_window, y_window = key.split("/")[0].split("-")
         new_bbox_dict.setdefault(artboard_name, [])
         new_bbox_dict[artboard_name].append({x_window + "-" + y_window : bbox_dict[key]})
-    json.dump(new_bbox_dict, open("new_bbox_result_uldgraph", "w"))
+    json.dump(new_bbox_dict, open("new_bbox_result_uldgraph.json", "w"))
     return new_bbox_dict
 
 if __name__=='__main__':

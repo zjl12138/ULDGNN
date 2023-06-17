@@ -231,7 +231,7 @@ class Trainer(object):
             scores = confidence[pred == 1]
             #mask = torch.logical_and(scores >= 0.8, merging_groups_pred_mask) 
             #merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred[mask], scores[mask], threshold=0.4)
-            merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred, scores, threshold=0.4)
+            merging_groups_pred_nms, merging_groups_confidence = nms_merge(merging_groups_pred, scores, threshold=0.45)
 
         merging_groups_gt = bboxes_gt[labels == 1] + fragmented_layers_gt
     
@@ -352,8 +352,8 @@ class Trainer(object):
                     val_metric_stats.setdefault(k, 0)
                     val_metric_stats[k] += v
                 '''
-                # fetch_data = self.process_output_data(output, layer_rects, labels, bboxes)
-                fetch_data = self.process_output_data_uldgnn(output, layer_rects, labels, bboxes, node_indices, file_list)
+                fetch_data = self.process_output_data(output, layer_rects, labels, bboxes)
+                # fetch_data = self.process_output_data_uldgnn(output, layer_rects, labels, bboxes, node_indices, file_list)
                 
                 fragmented_layers_gt = fetch_data['fragmented_layers_gt']
                 fragmented_layers_pred = fetch_data['fragmented_layers_pred']

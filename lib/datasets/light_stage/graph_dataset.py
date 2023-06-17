@@ -160,7 +160,7 @@ class Dataset(data.Dataset):
         #layer_assets = self.img_transform(self.read_img_naive(os.path.join(self.root, artboard_idx,assets_img)))
         elif self.bg_color_mode == 'bg_color_orig':
             if not os.path.exists(os.path.join(self.root, artboard_idx, f"{artboard_idx}-assets_rerefine.png")):
-                #assert(os.path.exists(os.path.join(self.root, artboard_idx, f"{artboard_idx}-assets_rerefine.png")))
+                assert(os.path.exists(os.path.join(self.root, artboard_idx, f"{artboard_idx}-assets_rerefine.png")))
                 path = os.path.join(self.root, artboard_idx, assets_img)
                 img_tensor = T.ToTensor()(Image.open(path).convert('RGBA'))
                 bg_color_list = []
@@ -204,11 +204,6 @@ class Dataset(data.Dataset):
             layer_rect, edges, bbox, types, labels = read_graph_json(graph_path)
             layer_rect = torch.FloatTensor(layer_rect)
             orig_layer_rect = layer_rect.clone()
-            if self.normalize_coord:
-                graph_bbox = get_the_bbox_of_cluster(layer_rect)
-                layer_rect[:, 0 : 2] -= graph_bbox[0 : 2]
-                scaling_tensor = torch.cat( (graph_bbox[2 : 4], graph_bbox[2 : 4]), dim = 0)
-                layer_rect /= scaling_tensor
             
             edges = torch.LongTensor(edges).transpose(1,0)
             bbox = torch.FloatTensor(bbox)
