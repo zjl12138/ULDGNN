@@ -131,7 +131,7 @@ def load_partial_network(net, model_dir, resume=True, epoch=-1, strict=True):
         if k in pretrained_model.keys() and v.size() == pretrained_model[k].size():
             model_dict[k] = pretrained_model[k]
         else:
-            print(f"not found {keys[i]} or {keys[i]}'s size not matched")
+            print(f"not found {k} or {k}'s size not matched")
     net.load_state_dict(model_dict)
     return save_dict['epoch'] + 1
 

@@ -352,8 +352,8 @@ class Trainer(object):
                     val_metric_stats.setdefault(k, 0)
                     val_metric_stats[k] += v
                 '''
-                fetch_data = self.process_output_data(output, layer_rects, labels, bboxes)
-                # fetch_data = self.process_output_data_uldgnn(output, layer_rects, labels, bboxes, node_indices, file_list)
+                # fetch_data = self.process_output_data(output, layer_rects, labels, bboxes)
+                fetch_data = self.process_output_data_uldgnn(output, layer_rects, labels, bboxes, node_indices, file_list)
                 
                 fragmented_layers_gt = fetch_data['fragmented_layers_gt']
                 fragmented_layers_pred = fetch_data['fragmented_layers_pred']

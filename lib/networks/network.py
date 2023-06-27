@@ -56,7 +56,7 @@ class Classifier(nn.Module):
 
 class Classifier_two_branches(nn.Module):
     def __init__(self, cfg):
-        super(Classifier, self).__init__()
+        super(Classifier_two_branches, self).__init__()
         self.in_dim = cfg.in_dim
         self.latent_dims = cfg.latent_dims
         self.make(cfg)
@@ -476,6 +476,7 @@ class Network(nn.Module):
         
         self.feat_embed_module = []
         if not cfg.remove_pos:
+            print("not remove pos!")
             self.pos_embedder = PosEmbedder(cfg.pos_embedder)
         if not cfg.remove_type:
             self.type_embedder = TypeEmbedder(cfg.type_embedder)
@@ -486,12 +487,14 @@ class Network(nn.Module):
         self.gnn_fn = make_gnn(cfg.gnn_fn.gnn_type)(cfg.gnn_fn)
         self.gnn_fn.set_edge_embedder(self.edge_embedder)
         self.cls_fn = Classifier(cfg.cls_fn)
-        self.loc_type = cfg.loc_fn.loc_type
+        self.loc_type = cfg.loc_type # cfg.loc_fn.loc_type
         self.gnn_type = cfg.gnn_fn.gnn_type
         print("loc_fn_type: ", cfg.loc_fn.loc_type)
         self.refine_box_module: box_refine_module = None
         if cfg.loc_fn.loc_type == 'classifier_with_gnn':
-            self.loc_fn = Classifier_with_gnn(cfg.loc_fn) 
+            self.loc_fn = Classifier_with_gnn(cfg.loc_fn)
+        elif  cfg.loc_fn.loc_type == 'classifier_two_branches':
+            self.loc_fn = Classifier_two_branches(cfg.loc_fn)
         else:
             self.loc_fn = Classifier(cfg.loc_fn)
         if cfg.train_mode == 3:

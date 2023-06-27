@@ -88,7 +88,7 @@ class Dataset(data.Dataset):
         #self.train_list = self.train_list[:20]
         self.img_transform = T.Compose([
             T.ToTensor(),
-            # T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         self.bg_color_mode = cfg.bg_color_mode
         self.normalize_coord = False
@@ -135,7 +135,7 @@ class Dataset(data.Dataset):
     def __getitem__(self, index) :
         
         graph_path, layer_img_path = self.small_batch_data_list[index]
-        layer_img = ToTensor()(Image.open(layer_img_path).convert('RGB'))
+        layer_img = self.img_transform(Image.open(layer_img_path).convert('RGB'))
         layer_img = layer_img.reshape(3, -1, 64, 64).transpose(1, 0)
         
         batch = []

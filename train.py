@@ -123,7 +123,7 @@ if __name__=='__main__':
     network = make_network(cfg.network)
     if cfg.train.is_distributed:
         network = torch.nn.SyncBatchNorm.convert_sync_batchnorm(network)
-            
+    print("trained parameters----------------------------")       
     for n, v in network.named_parameters():
         if v.requires_grad:
             print(n)

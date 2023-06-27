@@ -74,6 +74,7 @@ cfg.test.vis_bbox = True
 cfg.test.val_nms = False
 
 cfg.network = CN()
+cfg.network.loc_type = 'classifier_with_anchor'
 cfg.network.remove_pos = False
 cfg.network.remove_type = False
 cfg.network.remove_img = False
