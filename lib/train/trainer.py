@@ -79,7 +79,7 @@ class Trainer(object):
             data_time = time.time() - end
             iteration += 1
             batch = self.to_cuda(list(batch))
-
+            CFG.network.alpha = CFG.network.alpha * (epoch * len(data_loader) + iteration) / (2 * len(data_loader))
             output, loss, loss_stats = self.network(batch, self.anchor_box_wh)  #output: (logits, centers, bboxes)
 
             optimizer.zero_grad()

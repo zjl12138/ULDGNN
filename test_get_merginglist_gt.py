@@ -1,5 +1,5 @@
 from scipy.sparse import data
-from lib.utils.nms import nms_merge, get_comp_gt_list, get_the_bbox_of_cluster
+from lib.utils.nms import get_comp_gt_list_vectorize, get_gt_adj_vectorize, nms_merge, get_comp_gt_list, get_the_bbox_of_cluster
 from lib.datasets import make_data_loader
 from lib.config import cfg
 from lib.visualizers import visualizer
@@ -42,7 +42,7 @@ if __name__=='__main__':
     cfg.train_dataset.rootDir = '../../dataset/graph_dataset_rererefine_copy'
     cfg.train_dataset.index_json = 'index_testv2.json'
     cfg.train_dataset.bg_color_mode = 'bg_color_orig'
-    dataloader = make_data_loader(cfg,is_train=True)
+    dataloader = make_data_loader(cfg, is_train=True)
     vis = visualizer(cfg.visualizer)
     evaluator = Evaluator()
     print(len(dataloader))
@@ -69,7 +69,8 @@ if __name__=='__main__':
         file_path, artboard_name = os.path.split(file_list[0])
        
         bboxes = bboxes + nodes
-        merging_groups_gt = get_comp_gt_list(bboxes, labels)
+        adj_labels = get_gt_adj_vectorize(bboxes, labels)
+        merging_groups_gt = get_comp_gt_list_vectorize(adj_labels, labels)
         #vis.visualize_nms_with_labels(bboxes[labels == 1], torch.ones((bboxes[labels]==1).shape[0]), file_list[0], mode = 'test', save_file = True )
         refine_bbox = []
         for merge_group in merging_groups_gt:

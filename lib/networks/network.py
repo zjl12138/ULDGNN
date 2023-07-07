@@ -607,11 +607,48 @@ class Network(nn.Module):
         bboxes = torch.cat([torch.gather(bboxes, 1, confidence_argmax.unsqueeze(1) * 4 + i) for i in range(4)], dim = 1)
         return (logits, centroids, bboxes, confidence, voting_offset)
 
+    def contrasitive_loss(self, gnn_feats, layer_rects, bboxes, labels, node_indices):
+        alpha = cfg.alpha
+        gnn_feats = F.normalize(gnn_feats, p = 2, dim = 1)
+        idx = 0
+        prev_idx = 0
+        contrasitive_loss = 0.0
+        while idx < gnn_feats.shape[0]:
+            if idx == node_indices.shape[0] - 1 or node_indices[idx + 1] != node_indices[idx]:
+                x = gnn_feats[prev_idx : idx + 1, :]
+                bboxes_idx = bboxes[prev_idx : idx + 1, :]
+                layer_rects_idx = layer_rects[prev_idx : idx + 1, :]
+                labels_idx = labels[prev_idx : idx + 1]
+                bboxes_idx = bboxes_idx + layer_rects_idx
+                similarity_matrix = torch.sum(torch.abs(bboxes_idx - bboxes_idx[:, None, :].repeat(1, idx + 1 - prev_idx, 1)), dim = 2) # size [N, N]
+                mask = similarity_matrix <= 1e-6
+                contrasitive_labels = torch.zeros_like(similarity_matrix, dtype = torch.float32, device = similarity_matrix.device)
+                contrasitive_labels[mask] = 1.
+                label_idx_mask_1 = (labels_idx == 0).reshape(idx + 1 - prev_idx, 1) & (labels_idx == 1).reshape(1, idx + 1 -prev_idx)
+                label_idx_mask_2 = (labels_idx == 1).reshape(idx + 1 - prev_idx, 1) & (labels_idx == 0).reshape(1, idx + 1 -prev_idx)
+                label_idx_mask = torch.logical_or(label_idx_mask_1, label_idx_mask_2)
+                label_idx_mask_0 = (labels_idx == 0).reshape(idx + 1 - prev_idx, 1) & (labels_idx == 0).reshape(1, idx + 1 -prev_idx)
+                contrasitive_labels[label_idx_mask] = 0. # we need make sure labels==0 is not related to labels == 1
+                contrasitive_labels[label_idx_mask_0] = 1. # labels == 0 are considered to be related
+                # contrasitive_labels[contrasitive_labels == 1] = 0.9
+                # contrasitive_labels[contrasitive_labels == 0] = 0.1 / torch.sum(contrasitive_labels == 0)
+                x = F.normalize(x, p = 2, dim = 1) 
+                sim = x @ x.t()
+                contrasitive_loss = contrasitive_loss + torch.nn.BCEWithLogitsLoss()(sim, contrasitive_labels)
+                prev_idx = idx + 1
+            idx = idx + 1
+        return contrasitive_loss
+    
     def loss(self, output, gt, anchor_box_wh = None):
         
         layer_rects, labels, bboxes = gt
         logits, centroids, local_params, confidence, voting_offset = self.process_output_data(output, layer_rects, anchor_box_wh)
         
+        if self.loc_type == 'classifier_with_anchor':
+            output = self.anchor_process((logits, centroids, local_params, confidence, voting_offset))
+        else:
+            output = (logits, centroids, local_params, confidence, voting_offset)
+            
         loss_stats = {}
         cls_loss = self.cls_loss_fn(logits, labels)
         assert(torch.sum(bboxes[labels == 0]).item() < 1e-8)
@@ -639,7 +676,7 @@ class Network(nn.Module):
             #print(if_pred_bbox_contain_layer.all())
         #local_params = local_params + layer_rects
 
-        bboxes = bboxes + layer_rects  # because in our dataset we save [bbox_gt - layer_rect]
+        bboxes = bboxes + layer_rects  # because in our dataset we store [bbox_gt - layer_rect]
         bboxes_center = bboxes[:, 0 : 2] + bboxes[:, 2 : 4] * 0.5
         if 'anchor' in self.bbox_regression_type:
             bboxes = bboxes.repeat(1, 9).reshape(-1, 4)
@@ -673,7 +710,7 @@ class Network(nn.Module):
         loss_stats['center_reg_loss'] = 1000 * center_reg_loss
         #loss = 10 * center_reg_loss + cfg.cls_loss.weight * cls_loss
         loss_stats['loss'] =  loss
-        return loss, loss_stats
+        return loss, loss_stats, output
 
     def refine_box_loss(self, refine_boxes, gt):  
         layer_rects, labels, bboxes = gt
@@ -752,6 +789,8 @@ class Network(nn.Module):
             gnn_out = gnn_out[:, 4:]
             voting_offset = gnn_out[:, :4] 
 
+        contrasitive_loss = self.contrasitive_loss(gnn_out, layer_rect, bboxes, labels, node_indices)
+        
         if self.loc_type == 'classifier_with_gnn':
             loc_params = self.loc_fn(gnn_out, edges, node_indices)
 
@@ -773,12 +812,14 @@ class Network(nn.Module):
 
         #print(logits.shape, loc_params.shape)
         if self.refine_box_module is None:
-            loss, loss_stats = self.loss([logits, loc_params, confidence, voting_offset], 
+            loss, loss_stats, output = self.loss([logits, loc_params, confidence, voting_offset], 
                                         [layer_rect, labels, bboxes], anchor_box_wh)
-            
-            if self.loc_type == 'classifier_with_anchor':
-                return self.anchor_process(self.process_output_data((logits, loc_params, confidence, voting_offset), layer_rect, anchor_box_wh)), loss, loss_stats
-            return self.process_output_data((logits, loc_params, confidence, voting_offset), layer_rect, anchor_box_wh), loss, loss_stats
+            loss_stats['contrasitvie_loss'] = contrasitive_loss
+            loss += contrasitive_loss
+            # if self.loc_type == 'classifier_with_anchor':
+            #    return self.anchor_process(self.process_output_data((logits, loc_params, confidence, voting_offset), layer_rect, anchor_box_wh)), loss, loss_stats
+            #return self.process_output_data((logits, loc_params, confidence, voting_offset), layer_rect, anchor_box_wh), loss, loss_stats
+            return output, loss, loss_stats
         else:
             logits, centroids, pred_bboxes, confidence, voting_offset = self.anchor_process(
                 self.process_output_data((logits, loc_params, confidence, voting_offset),  layer_rect, anchor_box_wh))

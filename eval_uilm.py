@@ -123,9 +123,9 @@ if __name__=='__main__':
             continue
         bbox_pred = torch.cat(bbox_pred, dim = 0)
         #vis.visualize_not_scale(bbox_pred, file_list[0])
-        vis.visualize_nms(bbox_pred, file_list[0])
+        # vis.visualize_nms(bbox_pred, file_list[0])
         bboxes = bboxes + nodes
-        vis.visualize_nms_with_labels(bboxes[labels == 1], torch.ones(bboxes[labels==1].shape[0]), file_list[0], mode = 'test', save_file = True )
+        # vis.visualize_nms_with_labels(bboxes[labels == 1], torch.ones(bboxes[labels==1].shape[0]), file_list[0], mode = 'test', save_file = True )
         
         bbox_pred, _ = nms_merge(bbox_pred, torch.ones(bbox_pred.shape[0]), threshold = 0.7)
         pred_labels = evaluator.correct_pred_with_nms(pred_labels, bbox_pred, nodes, types)
@@ -139,7 +139,7 @@ if __name__=='__main__':
         for merge_group in merging_groups_pred:
             refine_bbox.append(get_the_bbox_of_cluster(nodes[merge_group, :]))
         vis.visualize_nms(refine_bbox, file_list[0], mode = 'refine')
-        vis.visualize_pred_fraglayers(nodes[pred_labels==1], file_list[0], save_file = True)
+        # vis.visualize_pred_fraglayers(nodes[pred_labels==1], file_list[0], save_file = True)
         merge_recall += eval_merging_dict['merge_recall']
         merge_precision += eval_merging_dict['merge_precision']
         #merge_iou += eval_merging_dict['merge_iou']

@@ -40,12 +40,14 @@ def get_merging_components_transformer(pred_label : torch.Tensor):
 if __name__=='__main__':
     
     vis = visualizer(cfg.visualizer)
-    rootDir = "/media/sda1/cyn-workspace/CodeBase/sketch-project/sketch_transformer_dataset"
+    rootDir = "/media/sda1/cyn-workspace/sketch_transformer_dataset"
     #rootDir = "../../dataset/transformer_dataset"
-    index_test_list = json.load(open(f"{rootDir}/index_test.json"))
+    index_test_list = json.load(open(f"{rootDir}/index.json"))
     positive_labels_nums = 0
     for idx in tqdm(index_test_list):
         artboard_path = os.path.join(rootDir, idx['image'])
+        if not os.path.exists(os.path.join(rootDir, idx['json'])):
+            continue
         artboard_json = json.load(open(os.path.join(rootDir, idx['json']),"r"))
         merge_group_list = []
         tmp = []

@@ -292,3 +292,28 @@ def get_comp_gt_list(bboxes, labels_gt):
             if len(tmp) >= 1:
                 comp_gt_list.append(torch.LongTensor(tmp))
     return comp_gt_list
+
+def get_gt_adj_vectorize(bboxes, labels_gt):
+    N = bboxes.shape[0]
+    similarity_matrix = torch.sum(torch.abs(bboxes - bboxes[:, None, :].repeat(1, N, 1)), dim = 2) # size [N, N]
+    mask = similarity_matrix <= 1e-6
+    contrasitive_labels = torch.zeros_like(similarity_matrix, dtype = torch.int64, device = similarity_matrix.device)
+    contrasitive_labels[mask] = 1
+    label_idx_mask_1 = (labels_gt == 0).reshape(N, 1) & (labels_gt == 1).reshape(1, N)
+    label_idx_mask_2 = (labels_gt == 1).reshape(N, 1) & (labels_gt == 0).reshape(1, N)
+    label_idx_mask = torch.logical_or(label_idx_mask_1, label_idx_mask_2)
+    label_idx_mask_0 = (labels_gt == 0).reshape(N, 1) & (labels_gt == 0).reshape(1, N)
+    contrasitive_labels[label_idx_mask] = 0 # we need make sure labels==0 is not related to labels == 1
+    contrasitive_labels[label_idx_mask_0] = 0
+    return contrasitive_labels
+
+def get_comp_gt_list_vectorize(contrasitive_labels, labels_gt):
+    
+    fragmented_idx = torch.where(labels_gt == 1)[0]
+    results = []
+    for i in range(fragmented_idx.shape[0]):
+        merging_tensor = torch.where(contrasitive_labels[fragmented_idx[i], :] != 0)[0]
+        #if merging_tensor[merging_tensor.shape[0] - 1] >= fragmented_idx[i]:
+        results.append(merging_tensor)
+    return results
+    

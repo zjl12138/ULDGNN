@@ -6,7 +6,7 @@ train:
     save_best_acc: True
     is_distributed: True
     eval_ep: 10
-    batch_size: 4
+    batch_size: 24
     load_all_pretrained: False
 
 train_dataset:

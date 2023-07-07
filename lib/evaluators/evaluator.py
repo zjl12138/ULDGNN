@@ -3,10 +3,10 @@ from PIL.ImageOps import contain
 import torch
 import numpy as np
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
-from lib.utils.nms import contains_how_much, get_comp_gt_list
+from lib.utils.nms import contains_how_much, get_comp_gt_list, get_comp_gt_list_vectorize
 from lib.utils import nms_merge, IoU, contains
 import torch.nn.functional as F
-from lib.utils import get_gt_adj, get_pred_adj, merging_components
+from lib.utils import get_gt_adj, get_pred_adj, merging_components, get_comp_gt_list_vectorize, get_gt_adj_vectorize
 
 class Evaluator:
     def __init__(self):
@@ -81,7 +81,8 @@ class Evaluator:
     
     def evaluate_merging(self, merging_groups_nms, pred_labels, layer_rect, bboxes_gt, labels_gt):
         n = layer_rect.shape[0]
-        adj_gt = get_gt_adj(bboxes_gt, labels_gt)
+        # adj_gt = get_gt_adj(bboxes_gt, labels_gt)
+        adj_gt = get_gt_adj_vectorize(bboxes_gt, labels_gt)
         if len(merging_groups_nms) == 0:
             if torch.sum(labels_gt) != 0:
                 return {"merge_recall" : 0.0, 'merge_precision' : 0.0, 
@@ -90,7 +91,8 @@ class Evaluator:
                 return {"merge_recall" : 1.0, 'merge_precision' : 1.0, 
                     "merge_iou_recall" : 1.0, "merge_iou_precision": 1.0}
         merging_groups_pred = merging_components(torch.vstack(merging_groups_nms), layer_rect, pred_labels)
-        merging_groups_gt = get_comp_gt_list(bboxes_gt, labels_gt)
+        # merging_groups_gt = get_comp_gt_list(bboxes_gt, labels_gt)
+        merging_groups_gt = get_comp_gt_list_vectorize(adj_gt, labels_gt)
         # print(merging_groups_pred)
         adj_pred = get_pred_adj(merging_groups_pred, layer_rect.shape[0], layer_rect.device)
         merging_iou_precision = 0.0
