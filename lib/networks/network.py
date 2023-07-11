@@ -4,7 +4,7 @@ from ssl import cert_time_to_seconds
 import torch
 import torch.nn as nn
 import torch_geometric
-from lib.utils.nms import contains_how_much
+from lib.utils.nms import contains_how_much, get_box_of_cluster_mask
 from lib.utils import contains
 from lib.networks.layers import make_fully_connected_layer, GATLayer, GPSLayer
 from lib.networks.layers import GetPosEmbedder, PosEmbedder, ImageEmbedder, TypeEmbedder
@@ -448,8 +448,8 @@ class Network(nn.Module):
         super(Network, self).__init__()   
         self.cls_loss_fn = make_classifier_loss(cfg.cls_loss)
         self.reg_loss_fn = make_regression_loss(cfg.reg_loss)
-        self.huber_fn = torch.nn.L1Loss() 
-
+        # self.huber_fn = torch.nn.L1Loss() 
+        self.huber_fn = torch.nn.HuberLoss(delta = 0.5)
         cfg.gnn_fn.in_dim = cfg.pos_embedder.out_dim
         cfg.cls_fn.in_dim = cfg.gnn_fn.out_dim
         cfg.loc_fn.in_dim = cfg.gnn_fn.out_dim
@@ -528,7 +528,8 @@ class Network(nn.Module):
         if train_mode == '1_to_0':
             self.open_network(self.loc_fn)
 
-    def process_output_data(self, output, layer_rects, anchor_box_wh = None):
+    def process_output_data(self, output, layer_rects, anchor_box_wh = None, cluster_anchors = None):
+        # this function is used to explain output
         logits, local_params, confidence, voting_offset = output
 
         if self.bbox_regression_type == 'center_regress':
@@ -536,8 +537,12 @@ class Network(nn.Module):
             wh = local_params[:, 2 : 4]
             bboxes = torch.cat((xy, wh), dim=1)
             centroids = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2]
-            #pred_bboxes.requires_grad = True
-            #local_params[:, 0 : 2] = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2] - local_params[:, 2 : 4] * 0.5
+            # pred_bboxes.requires_grad = True
+            # local_params[:, 0 : 2] = layer_rects[:, 0 : 2] + layer_rects[:, 2 : 4] * 0.5 + local_params[:, 0 : 2] - local_params[:, 2 : 4] * 0.5
+        elif self.bbox_regression_type == 'offset_based_on_cluster':
+            bboxes = local_params + cluster_anchors
+            centroids = None
+            
         elif self.bbox_regression_type == 'offset_based_on_layer':
             bboxes = local_params + layer_rects
             centroids = bboxes[:, 0 : 2] + 0.5 * bboxes[:, 2 : 4]
@@ -592,9 +597,14 @@ class Network(nn.Module):
             confidence = confidence.reshape(-1)
             if voting_offset is not None:
                 voting_offset = voting_offset.reshape(-1, 4) + anchor_bboxes
+        
+        elif self.bbox_regression_type == 'anchor_params':
+            bboxes = local_params.reshape(-1, 4)
+            confidence = confidence.reshape(-1)
+            centroids = None
         else:
             raise(f"No such bbox regression type: {self.bbox_regression_type}")
-        
+
         return (logits, centroids, bboxes, torch.nn.Sigmoid()(confidence) if confidence is not None else None, voting_offset)
         #return (logits, centroids, bboxes, confidence)
     def anchor_process(self, output):
@@ -608,6 +618,49 @@ class Network(nn.Module):
         return (logits, centroids, bboxes, confidence, voting_offset)
 
     def contrasitive_loss(self, gnn_feats, layer_rects, bboxes, labels, node_indices):
+        alpha = cfg.alpha
+        gnn_feats = F.normalize(gnn_feats, p = 2, dim = 1)
+        idx = 0
+        prev_idx = 0
+        contrasitive_loss = 0.0
+        cluster_anchors = []
+        # print(layer_rects[layer_rects > 1])
+        
+        while idx < gnn_feats.shape[0]:
+            if idx == node_indices.shape[0] - 1 or node_indices[idx + 1] != node_indices[idx]:
+                x = gnn_feats[prev_idx : idx + 1, :]
+                bboxes_idx = bboxes[prev_idx : idx + 1, :]
+                layer_rects_idx = layer_rects[prev_idx : idx + 1, :]
+                labels_idx = labels[prev_idx : idx + 1]
+                bboxes_idx = bboxes_idx + layer_rects_idx
+                similarity_matrix = torch.sum(torch.abs(bboxes_idx - bboxes_idx[:, None, :].repeat(1, idx + 1 - prev_idx, 1)), dim = 2) # size [N, N]
+                mask = similarity_matrix <= 1e-6
+                contrasitive_labels = torch.zeros_like(similarity_matrix, dtype = torch.float32, device = similarity_matrix.device)
+                contrasitive_labels[mask] = 1.
+                label_idx_mask_1 = (labels_idx == 0).reshape(idx + 1 - prev_idx, 1) & (labels_idx == 1).reshape(1, idx + 1 -prev_idx)
+                label_idx_mask_2 = (labels_idx == 1).reshape(idx + 1 - prev_idx, 1) & (labels_idx == 0).reshape(1, idx + 1 -prev_idx)
+                label_idx_mask = torch.logical_or(label_idx_mask_1, label_idx_mask_2)
+                label_idx_mask_0 = (labels_idx == 0).reshape(idx + 1 - prev_idx, 1) & (labels_idx == 0).reshape(1, idx + 1 -prev_idx)
+                contrasitive_labels[label_idx_mask] = 0. # we need make sure labels==0 is not related to labels == 1
+                contrasitive_labels[label_idx_mask_0] = 1. # labels == 0 are considered to be related
+                # contrasitive_labels[contrasitive_labels == 1] = 0.9
+                # contrasitive_labels[contrasitive_labels == 0] = 0.1 / torch.sum(contrasitive_labels == 0)
+                x = F.normalize(x, p = 2, dim = 1) 
+                sim = x @ x.t()
+                cluster_mask = (contrasitive_labels > 0.5) # in training stage, use gt cluster
+                if not getattr(self, "training"): # in test mode
+                    probs = F.sigmoid(sim)
+                    cluster_mask = probs > 0.5
+                cluster_anchors.append(get_box_of_cluster_mask(layer_rects_idx[None, ...].repeat(idx + 1 - prev_idx, 1, 1), cluster_mask))
+                contrasitive_loss = contrasitive_loss + torch.nn.BCEWithLogitsLoss()(sim, contrasitive_labels)
+                prev_idx = idx + 1
+            idx = idx + 1
+        cluster_anchors = torch.cat(cluster_anchors, dim = 0)
+        assert(cluster_anchors.shape[0] == gnn_feats.shape[0] and cluster_anchors.shape[1] == 4)
+        # assert((cluster_anchors <= 2).all() and (cluster_anchors >= -1e-6).all())
+        return contrasitive_loss, cluster_anchors
+
+    def contrasitive_loss_euclidean(self, gnn_feats, layer_rects, bboxes, labels, node_indices):
         alpha = cfg.alpha
         gnn_feats = F.normalize(gnn_feats, p = 2, dim = 1)
         idx = 0
@@ -633,25 +686,35 @@ class Network(nn.Module):
                 # contrasitive_labels[contrasitive_labels == 1] = 0.9
                 # contrasitive_labels[contrasitive_labels == 0] = 0.1 / torch.sum(contrasitive_labels == 0)
                 x = F.normalize(x, p = 2, dim = 1) 
-                sim = x @ x.t()
+                sim = torch.sum(torch.abs(x - x[:, None, :].repeat(1, idx + 1 - prev_idx, 1)), dim = 2) # size [N, N]
                 contrasitive_loss = contrasitive_loss + torch.nn.BCEWithLogitsLoss()(sim, contrasitive_labels)
                 prev_idx = idx + 1
             idx = idx + 1
         return contrasitive_loss
     
-    def loss(self, output, gt, anchor_box_wh = None):
+    def loss(self, output, gt, anchor_box_wh = None, cluster_anchors = None):
         
         layer_rects, labels, bboxes = gt
-        logits, centroids, local_params, confidence, voting_offset = self.process_output_data(output, layer_rects, anchor_box_wh)
-        
+        logits, centroids, local_params, confidence, voting_offset = self.process_output_data(output, layer_rects, anchor_box_wh, cluster_anchors)
+        # local_params may be predicted bounding box or predicted box encodings
         if self.loc_type == 'classifier_with_anchor':
             output = self.anchor_process((logits, centroids, local_params, confidence, voting_offset))
+        elif self.loc_type == 'classifier_with_anchor_params':
+            layer_rects_expand = layer_rects.repeat(1, 9)
+            layer_rects_expand = layer_rects_expand.reshape(-1, 4)
+            anchor_box_wh_expand = anchor_box_wh.repeat(layer_rects_expand.shape[0] // 9, 1)
+            # (bboxes_xy - layer_xy) / anchor_wh = local_params_xy
+            bboxes_xy = local_params[:, 0 : 2] * anchor_box_wh_expand + layer_rects_expand[:, 0 : 2] + layer_rects_expand[:, 2 : 4] * 0.5 - 0.5 * anchor_box_wh_expand
+            bboxes_wh = torch.exp(local_params[:, 2 : 4]) * anchor_box_wh_expand
+            out_bboxes = torch.cat((bboxes_xy, bboxes_wh), dim = 1)
+            out_centroids = out_bboxes[:, 0 : 2] + 0.5 * out_bboxes[:, 2 : 4]
+            output = self.anchor_process((logits, out_centroids, out_bboxes, confidence, voting_offset)) # voting_offset is not used, a history problem maybe removed in the future
         else:
-            output = (logits, centroids, local_params, confidence, voting_offset)
-            
+            out_centroids = local_params[:, 0 : 2] + 0.5 * local_params[:, 2 : 4]
+            output = (logits, out_centroids, local_params, confidence, voting_offset)
+
         loss_stats = {}
         cls_loss = self.cls_loss_fn(logits, labels)
-        assert(torch.sum(bboxes[labels == 0]).item() < 1e-8)
         
         #scores, pred = torch.max(F.softmax(logits, dim = 1), 1)
         #training_mask = torch.logical_or(labels == 1, pred == 1)
@@ -666,7 +729,8 @@ class Network(nn.Module):
 
         if torch.sum(training_mask) != 0:
             local_params = local_params[training_mask]
-            centroids = centroids[training_mask]
+            if centroids is not None:
+                centroids = centroids[training_mask]
             if confidence is not None:
                 confidence = confidence[training_mask]
             if voting_offset is not None:
@@ -681,8 +745,16 @@ class Network(nn.Module):
         if 'anchor' in self.bbox_regression_type:
             bboxes = bboxes.repeat(1, 9).reshape(-1, 4)
             bboxes_center = bboxes_center.repeat(1, 9).reshape(-1, 2)
-        #print(local_params, bboxes)
-        
+        # print(local_params, bboxes)
+            if self.bbox_regression_type == 'anchor_params':
+                layer_rects_expand = layer_rects.repeat(1, 9)
+                layer_rects_expand = layer_rects_expand.reshape(-1, 4)
+                anchor_box_wh_expand = anchor_box_wh.repeat(layer_rects_expand.shape[0] // 9, 1)
+                bboxes_xy = (bboxes[:, 0 : 2] - layer_rects_expand[:, 0 : 2]
+                             - layer_rects_expand[:, 2 : 4] * 0.5 + 0.5 * anchor_box_wh_expand) / anchor_box_wh_expand
+                bboxes_wh = torch.log(bboxes[:, 2 : 4] / anchor_box_wh_expand + 1e-12)
+                bboxes = torch.cat([bboxes_xy, bboxes_wh], dim = 1) # here we encode gt_boxes
+
         loss =  cfg.cls_loss.weight * cls_loss
         reg_loss = self.reg_loss_fn(local_params, bboxes)  #reg is short for regression
         offset_loss = None
@@ -691,14 +763,16 @@ class Network(nn.Module):
             loss_stats['gnn_box_loss'] = offset_loss
 
         if confidence is not None:
-            #pervious version of calculating confidence loss
+            # pervious version of calculating confidence loss
             confidence_gt = IoU(bboxes, local_params)
             confidence_loss = cfg.confidence_weight * self.huber_fn(confidence_gt.detach(), confidence)
             '''confidence_gt = contains_how_much(local_params, bboxes)
             confidence_labels = (confidence_gt > 0.7).float()
             confidence_loss = F.binary_cross_entropy_with_logits(confidence, confidence_labels)'''
             loss_stats['confidence_loss'] = 1000 * confidence_loss
-            center_reg_loss = torch.sum(torch.abs(bboxes_center - centroids), dim = 1)
+            center_reg_loss = torch.tensor(0.0)
+            if centroids is not None:
+                center_reg_loss = torch.sum(torch.abs(bboxes_center - centroids), dim = 1)
             loss = loss + confidence_loss + cfg.reg_loss.weight * (1 - confidence_gt.detach()) * reg_loss + \
                         cfg.center_reg_loss.weight * (1 - confidence_gt.detach()) * center_reg_loss #+ 0.0 if offset_loss is None else cfg.reg_loss.weight * offset_loss
         else:
@@ -708,7 +782,7 @@ class Network(nn.Module):
         loss_stats['cls_loss'] = cls_loss
         loss_stats['reg_loss'] = reg_loss
         loss_stats['center_reg_loss'] = 1000 * center_reg_loss
-        #loss = 10 * center_reg_loss + cfg.cls_loss.weight * cls_loss
+        # loss = 10 * center_reg_loss + cfg.cls_loss.weight * cls_loss
         loss_stats['loss'] =  loss
         return loss, loss_stats, output
 
@@ -781,15 +855,16 @@ class Network(nn.Module):
         gnn_out = self.gnn_fn((batch_embedding, edges, node_indices), edge_attr, layer_rect)
         
         if 'anchor_voting' in self.gnn_type:
-            gnn_out, voting_offset = gnn_out #voting_offset: [N, 4 * 9]
-            
+            gnn_out, voting_offset = gnn_out # voting_offset: [N, 4 * 9]
+
+        gnn_out = F.normalize(gnn_out, p = 2, dim = 1) # here we normalize gnn_feats directly
         logits = self.cls_fn(gnn_out)
         
         if 'voting' in self.gnn_type and 'anchor' not in self.gnn_type:
             gnn_out = gnn_out[:, 4:]
             voting_offset = gnn_out[:, :4] 
 
-        contrasitive_loss = self.contrasitive_loss(gnn_out, layer_rect, bboxes, labels, node_indices)
+        contrasitive_loss, cluster_anchors = self.contrasitive_loss(gnn_out, layer_rect, bboxes, labels, node_indices)
         
         if self.loc_type == 'classifier_with_gnn':
             loc_params = self.loc_fn(gnn_out, edges, node_indices)
@@ -804,16 +879,26 @@ class Network(nn.Module):
             out = self.loc_fn(gnn_out)
             loc_params = out[:, :36]
             confidence = out[:, 36:]
+        elif self.loc_type == 'classifier_with_anchor_params':
+            out = self.loc_fn(gnn_out)
+            loc_params = out[:, :36]
+            confidence = out[:, 36:]
+        elif self.loc_type == 'deform_layer_clusters':
+            out = self.loc_fn(gnn_out)
+            assert(out.size(-1) == 5)
+            loc_params = out[:, :4]
+            confidence = out[:, 4]
         else:
             loc_params = self.loc_fn(gnn_out)
 
         if 'voting' in self.gnn_type: 
-            loc_params = voting_offset + loc_params
+            loc_params = voting_offset + loc_params  
+            # voting means that gnn model first output an initial guess of merging groups boxes
 
         #print(logits.shape, loc_params.shape)
         if self.refine_box_module is None:
             loss, loss_stats, output = self.loss([logits, loc_params, confidence, voting_offset], 
-                                        [layer_rect, labels, bboxes], anchor_box_wh)
+                                        [layer_rect, labels, bboxes], anchor_box_wh, cluster_anchors)
             loss_stats['contrasitvie_loss'] = contrasitive_loss
             loss += contrasitive_loss
             # if self.loc_type == 'classifier_with_anchor':

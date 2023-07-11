@@ -169,6 +169,8 @@ class Trainer(object):
         bboxes_gt = self.process_layer_coord(bboxes_gt, patch_size, offsets_in_artboard, artboard_size)
         layer_rects_gt = self.process_layer_coord(layer_rects_gt, patch_size, offsets_in_artboard, artboard_size)
 
+        centers *= patch_size[:, 0:2]
+        centers += offsets_in_artboard
         fragmented_layers_gt = layer_rects_gt[labels == 1]
         fragmented_layers_pred = layer_rects_gt[pred == 1]
             

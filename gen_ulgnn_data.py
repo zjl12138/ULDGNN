@@ -63,7 +63,7 @@ if __name__=='__main__':
     labels_gt = []
     merge_recall = 0.0
     merge_precision = 0.0 
-    dataset_folder = os.path.join("../../dataset/ULDGNN_graph_dataset/")
+    dataset_folder = os.path.join("../../dataset/ULDGNN_datasettest/")
     os.makedirs(dataset_folder, exist_ok = True)
     index_list = []
     for batch in tqdm(dataloader):
@@ -136,7 +136,13 @@ if __name__=='__main__':
                                 min(single_image_height * (y + 1), height)))
                 if (img_box[0] <= l_x and img_box[1] <= l_y and img_box[2] >= l_x + l_w and img_box[3] >= l_y + l_h):
                     layer_list[idx].append(count)
-        
+                    # check if the merging group of this layer belong to this box_range
+                    if labels[count] == 1:
+                        box_tmp = bbox_clone[count]
+                        box_x1, box_y1, box_w, box_h = box_tmp[0], box_tmp[1], box_tmp[2], box_tmp[3]
+                        box_x2, box_y2 = box_x1 + box_w, box_y1 + box_h
+                        if not (img_box[0] <= box_x1 and img_box[1] <= box_y1 and img_box[2] >= box_x2 and img_box[3] >= box_y2):
+                            labels[count] = 0
         #semantic_map.save(os.path.join(save_img_folder, f"{artboard_name}-filled.png"))
         semantic_map = Image.alpha_composite(artboard_img, semantic_map)
         #.save(os.path.join(save_img_folder, f"{artboard_name}-default.png"))
@@ -183,6 +189,8 @@ if __name__=='__main__':
                 types_in_this_window = types[layer_ids]
                 labels_in_this_window = labels[layer_ids]
                 img_assets.append(img_tensor[layer_ids, ...])
+                save_image(img_tensor[layer_ids, ...].transpose(1, 0).reshape(3, -1, 64), 
+                           os.path.join(save_folder, f'{artboard_name}-{graph_id}.png'))
                 
                 layers[:, 0 : 2] -= torch.tensor([math.floor(single_image_width * x), math.floor(single_image_height * y)], dtype = torch.float32)                
                 layers /= single_image_height

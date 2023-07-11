@@ -130,6 +130,20 @@ def get_the_bbox_of_cluster(bboxes):
     wh = xy2 - xy
     return torch.cat((xy, wh), dim=0)
 
+def get_box_of_cluster_mask(bboxes, mask):
+    '''
+    bboxes: [N, N, 4]
+    mask:   [N, N]
+    '''
+    bboxes[~mask] *= 0
+    bboxes[~mask] += torch.tensor([2., 2., -2., -2.], dtype = torch.float32, device = bboxes.device)
+    b1_mins = bboxes[..., 0 : 2]
+    b1_maxs = bboxes[..., 0 : 2] + bboxes[..., 2 : 4] # [N, N, 2]
+    xy = torch.min(b1_mins, dim = 1)[0]
+    xy2 = torch.max(b1_maxs, dim = 1)[0]
+    wh = xy2 - xy
+    return torch.cat((xy, wh), dim = 1)
+
 def vote_clustering(centroids, layer_rects, radius=0.001):
     '''
     params: centeroids: [N, 2]
