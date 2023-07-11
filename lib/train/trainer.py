@@ -52,7 +52,7 @@ class Trainer(object):
         self.network = network
         self.anchor_box_wh = torch.tensor([[16.0, 8.0], [16.0, 16.0], [16.0, 32.0],
                                            [64.0, 32.0], [64.0, 64.0], [64.0, 128.0],
-                                          [256.0, 128.0], [256.0, 256.0], [512.0, 512.0]], dtype = torch.float32).to(self.device) / 750.0
+                                          [256.0, 128.0], [256.0, 256.0], [256.0, 512.0]], dtype = torch.float32).to(self.device) / 750.0
         # self.anchor_box_wh = torch.tensor([[sqrt(16.0 * 8.0) * 2, sqrt(16.0 * 8.0)], [16.0, 16.0], [sqrt(16.0 * 8.0), 2 * sqrt(16.0 * 8.0)],
         #                                   [sqrt(128.0 * 64.0) * 2, sqrt(128.0 * 64.0)], [128.0, 128.0], [sqrt(128.0 * 64.0), 2 * sqrt(128.0 * 64.0)],
         #                                   [sqrt(128.0 * 256.0) * 2, sqrt(128.0 * 256.0)], [256.0, 256.0], [sqrt(128.0 * 256.0), 2 * sqrt(128.0 * 256.0)]], dtype = torch.float32).to(self.device) / 375.0
@@ -352,8 +352,8 @@ class Trainer(object):
                     val_metric_stats.setdefault(k, 0)
                     val_metric_stats[k] += v
                 '''
-                # fetch_data = self.process_output_data(output, layer_rects, labels, bboxes)
-                fetch_data = self.process_output_data_uldgnn(output, layer_rects, labels, bboxes, node_indices, file_list)
+                fetch_data = self.process_output_data(output, layer_rects, labels, bboxes)
+                # fetch_data = self.process_output_data_uldgnn(output, layer_rects, labels, bboxes, node_indices, file_list)
                 
                 fragmented_layers_gt = fetch_data['fragmented_layers_gt']
                 fragmented_layers_pred = fetch_data['fragmented_layers_pred']

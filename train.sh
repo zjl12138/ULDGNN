@@ -1,5 +1,5 @@
 #nohup python -m torch.distributed.launch --nproc_per_node=3 train.py --exp_name=dataset_rerefinelarge_fillblank_gps_mode_GIN_train_mode_0_step_voting_confidence --train_mode=1 --cfg_file=configs/GPSModel_voting_confidence_guided.yaml --epochs=50 --lr=0.0001
 #nohup python -m torch.distributed.launch --nproc_per_node=3 train.py --exp_name=dataset_rerefinelarge_fillblank_gps_mode_GIN_train_mode_0_step_voting_confidence --train_mode=0 --cfg_file=configs/GPSModel_voting_confidence_guided.yaml --epochs=1500 --lr=5e-5
 
-nohup python -m torch.distributed.launch --nproc_per_node=3  train.py --exp_name=ULDGNN_graph_data_bg_color_orig_gps_mode_GINE_anchor_edge_attr --train_mode=1 --cfg_file=configs/GPSModel_voting_edge_attr_anchor.yaml --epochs=50 --lr=0.0001 > log_uldgnn_graph.out
-nohup python -m torch.distributed.launch --nproc_per_node=3  train.py --exp_name=ULDGNN_graph_data_bg_color_orig_gps_mode_GINE_anchor_edge_attr --train_mode=0 --cfg_file=configs/GPSModel_voting_edge_attr_anchor.yaml --epochs=1500 --lr=5e-5 > log_uldgnn_graph.out
+nohup python -m torch.distributed.launch --nproc_per_node=3  train.py --exp_name=egfe_data_retrain --train_mode=1 --cfg_file=configs/GPSModel_voting_edge_attr_anchor_for_egfedata.yaml --epochs=50 --lr=0.0001 > log_retrain.log
+nohup python -m torch.distributed.launch --nproc_per_node=3  train.py --exp_name=egfe_data_retrain --train_mode=0 --cfg_file=configs/GPSModel_voting_edge_attr_anchor_for_egfedata.yaml --epochs=1000 --lr=5e-5 > log_retrain.log

@@ -84,7 +84,7 @@ class Dataset(data.Dataset):
         #self.train_list = self.train_list[:20]
         self.img_transform = T.Compose([
             T.ToTensor(),
-            # T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         self.bg_color_mode = cfg.bg_color_mode
         self.normalize_coord = False
