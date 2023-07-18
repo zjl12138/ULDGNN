@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import importlib
-
+import timm
 class PosEmbedder_impl:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
@@ -81,7 +81,23 @@ class TypeEmbedder(nn.Module):
     def forward(self, input):
         return self.embedding(input)
 
+class ImageSeqEmbedder(nn.Module):
+    def __init__(self, cfg):
+        super(ImageSeqEmbedder, self).__init__()
+        self.vit = timm.create_model(cfg.vit_name, pretrained = True, num_classes = 0)
+        self.data_config = timm.data.resolve_model_data_config(self.vit)
+        self.transforms = timm.data.create_transform(**self.data_config, is_training=True)
+        for k, p in self.vit.named_parameters():
+            p.requires_grad = False               # fix vision_transformer
 
+    def forward(self, x):
+        '''
+        x: [batch, 3, H, W]
+        return: [batch, seq_len, dim]
+        '''
+        x = self.vit.forward_features(x)
+        return x[:, 1:, :]
+ 
 
 
         

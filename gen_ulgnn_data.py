@@ -41,7 +41,7 @@ def random_color(n_colors):
 if __name__=='__main__':
     
     cfg.test.batch_size = 1
-    mode = 'trainv2'
+    mode = 'testv2'
     print(mode)
     cfg.test_dataset.rootDir = '../../dataset/graph_dataset_rererefine_copy'
     cfg.test_dataset.index_json = f'index_{mode}.json'
@@ -63,7 +63,7 @@ if __name__=='__main__':
     labels_gt = []
     merge_recall = 0.0
     merge_precision = 0.0 
-    dataset_folder = os.path.join("../../dataset/ULDGNN_datasettest/")
+    dataset_folder = os.path.join("../../dataset/ULDGNN_dataset/")
     os.makedirs(dataset_folder, exist_ok = True)
     index_list = []
     for batch in tqdm(dataloader):
@@ -199,10 +199,10 @@ if __name__=='__main__':
                 
                 for i in range(layers.shape[0] - 1, -1, -1):
                     l = torch.clip(layers[i, :], 0, single_image_height)
-                    x, y, w, h = int(l[0]), int(l[1]), int(l[2]), int(l[3])
-                    if torch.sum(buffer[y : y + h, x : x + w]) != w * h:
-                        buffer[y : y + h, x : x + w] *= 0
-                        buffer[y : y + h, x : x + w] += 1
+                    l_x, l_y, l_w, l_h = int(l[0]), int(l[1]), int(l[2]), int(l[3])
+                    if torch.sum(buffer[l_y : l_y + l_h, l_x : l_x + l_w]) != l_w * l_h:
+                        buffer[l_y : l_y + l_h, l_x : l_x + l_w] *= 0
+                        buffer[l_y : l_y + l_h, l_x : l_x + l_w] += 1
                         layers_after_filtering_ids.append(i) # we filter out all unvisible layers
                 layers_after_filtering_ids.reverse()
                 layers_after_filtering_ids = torch.LongTensor(layers_after_filtering_ids)
@@ -214,7 +214,7 @@ if __name__=='__main__':
 
                 types_in_this_window = types_in_this_window[layers_after_filtering_ids]
                 labels_in_this_window = labels_in_this_window[layers_after_filtering_ids]
-                img_tensor_in_this_window = img_tensor_in_this_window[layers_after_filtering_ids]
+                img_tensor_in_this_window = img_tensor_in_this_window[layers_after_filtering_ids, ...]
                 img_assets.append(img_tensor_in_this_window)
                 
                 save_image(img_tensor_in_this_window.transpose(1, 0).reshape(3, -1, 64), 
@@ -257,7 +257,7 @@ if __name__=='__main__':
                                                             math.floor(single_image_height * x), math.floor(single_image_height * y)])
                     artboard_label_draw.rectangle(label_bbox.tolist(), outline = 'red')
                 labeled_image.save(os.path.join(os.path.join(save_folder, artboard_name + f'-labeled-{graph_id}.png')))
-                graph_id += 1
+                
                 
                 filled_image = Image.new(
                         semantic_map.mode,
@@ -268,6 +268,7 @@ if __name__=='__main__':
                     os.path.join(os.path.join(save_folder, artboard_name+f'-{graph_id}-filled.png')))
 
                 is_used_as_test_or_train = True
+                graph_id += 1
     
         if is_used_as_test_or_train:
             index_list.append({"json": f"{artboard_name}.json", "layerassets": f"{artboard_name}-assets.png", "image": f"{artboard_name}.png"})

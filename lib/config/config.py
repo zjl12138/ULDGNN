@@ -101,6 +101,10 @@ cfg.network.img_embedder = CN()
 cfg.network.img_embedder.out_dim = 512
 cfg.network.img_embedder.name='resnet50'
 
+cfg.network.img_seq_embedder = CN()
+cfg.network.img_seq_embedder.vit_name = 'vit_base_patch16_224.dino'
+cfg.network.use_artboard_img = False
+
 cfg.network.gnn_fn = CN()
 cfg.network.gnn_fn.gnn_type = 'LayerGNN'
 cfg.network.gnn_fn.latent_dims = [256,256]

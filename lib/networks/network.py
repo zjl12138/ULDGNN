@@ -7,7 +7,7 @@ import torch_geometric
 from lib.utils.nms import contains_how_much, get_box_of_cluster_mask
 from lib.utils import contains
 from lib.networks.layers import make_fully_connected_layer, GATLayer, GPSLayer
-from lib.networks.layers import GetPosEmbedder, PosEmbedder, ImageEmbedder, TypeEmbedder
+from lib.networks.layers import GetPosEmbedder, PosEmbedder, ImageEmbedder, TypeEmbedder, ImageSeqEmbedder
 from lib.networks.loss import make_classifier_loss, make_regression_loss
 from lib.config import cfg as CFG
 import importlib
@@ -15,6 +15,7 @@ import torch.nn.functional as F
 from lib.utils import vote_clustering, vote_clustering_each_layer, IoU
 from torchvision.ops import roi_align
 import os
+from PIL import Image
 
 cfg = CFG.network
 
@@ -220,13 +221,13 @@ class GPSModel(nn.Module):
     def set_edge_embedder(self, edge_embed):
         self.edge_embedder = edge_embed
 
-    def forward(self, batch, edge_attr = None, pos_enc = None): # 
+    def forward(self, batch, edge_attr = None, pos_enc = None, img_seq = None): # 
         x, edge_index, node_indices = batch
         #print(torch.max(edges))
         #print(x.shape)
         for idx, (name, gnn_layer) in enumerate(self.named_children()):
             if 'GPS' in name:
-                x = gnn_layer((x, edge_index, node_indices), edge_attr = edge_attr, pos_enc = pos_enc)
+                x = gnn_layer((x, edge_index, node_indices), edge_attr = edge_attr, pos_enc = pos_enc, img_seq = img_seq)
                 #if idx >= 5:
         return x 
 
@@ -493,6 +494,14 @@ class Network(nn.Module):
         self.gnn_type = cfg.gnn_fn.gnn_type
         print("loc_fn_type: ", cfg.loc_fn.loc_type)
         self.refine_box_module: box_refine_module = None
+        self.img_seq_embedder = None
+        
+        self.use_artboard_img = cfg.use_artboard_img
+        
+        if cfg.use_artboard_img:
+            print("add image tokenized features into gnn layers!")
+            self.img_seq_embedder = ImageSeqEmbedder(cfg.img_seq_embedder)
+        
         if cfg.loc_fn.loc_type == 'classifier_with_gnn':
             self.loc_fn = Classifier_with_gnn(cfg.loc_fn)
         elif  cfg.loc_fn.loc_type == 'classifier_two_branches':
@@ -500,8 +509,8 @@ class Network(nn.Module):
         else:
             self.loc_fn = Classifier(cfg.loc_fn)
         if cfg.train_mode == 3:
-            print("fix cls branch!")
-            self.fix_network(self.cls_fn)
+            print("add image tokenized features into gnn layers!")
+            self.img_seq_embedder = ImageSeqEmbedder(cfg.img_seq_embedder)
         elif cfg.train_mode == 2:
             print("train refine branch only!")
             self.fix_network(self.pos_embedder)
@@ -815,6 +824,28 @@ class Network(nn.Module):
         loss_stats['refine_box_loss'] = loss
         return loss, loss_stats
 
+    def prepare_img_tokens(self, device, file_list): # use img_seq_embedder to transform artboard image into tokens
+        img_list = []
+        for path in file_list:
+            dataset_dir, artboard_name = os.path.split(path)
+            artboard_name = artboard_name.split(".")[0]
+            if '-' not in artboard_name: # if artboard_name is artboard_id. # test mode
+                # artboard_name = artboard_name.split("-")[0]
+                jdx = 0
+                while True:
+                    img_path = os.path.join(dataset_dir, f'{artboard_name}-{jdx}-filled.png')
+                    if not os.path.exists(img_path):
+                        break
+                    img = Image.open(img_path).convert("RGB").resize((224, 224))
+                    img_list.append(self.img_seq_embedder(self.img_seq_embedder.transforms(img).unsqueeze(0).to(device)))
+                    jdx += 1
+            else: # if artboard_name is artboard_id-idx # training mode
+                img_path = os.path.join(dataset_dir, f'{artboard_name}-filled.png')
+                assert(os.path.exists(img_path))
+                img = Image.open(img_path).convert("RGB").resize((224, 224))
+                img_list.append(self.img_seq_embedder(self.img_seq_embedder.transforms(img).unsqueeze(0).to(device)))
+        return torch.vstack(img_list)
+    
     def prepare_img_tensors(self, device, file_list):
         img_tensor_list = []
         for path in file_list:
@@ -864,8 +895,11 @@ class Network(nn.Module):
         
         confidence = None
         voting_offset = None
+        img_seq = None
         
-        gnn_out = self.gnn_fn((batch_embedding, edges, node_indices), edge_attr, layer_rect)
+        if self.use_artboard_img:
+            img_seq = self.prepare_img_tokens(bboxes.device, file_list)
+        gnn_out = self.gnn_fn((batch_embedding, edges, node_indices), edge_attr, layer_rect, img_seq = img_seq)
         
         if 'anchor_voting' in self.gnn_type:
             gnn_out, voting_offset = gnn_out # voting_offset: [N, 4 * 9]

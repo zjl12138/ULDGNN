@@ -275,7 +275,10 @@ class GPSLayer(nn.Module):
         elif global_model_type == 'Transformer':
             self.self_attn = torch.nn.MultiheadAttention(
                 dim_h, num_heads, dropout = self.attn_dropout, batch_first = True)
-        elif global_model_type == 'MultheadAttention_with_bias':
+        elif global_model_type == 'cross_attention':
+            self.self_attn = torch.nn.MultiheadAttention(
+                dim_h, num_heads, dropout = self.attn_dropout, batch_first = True, kdim = 768, vdim = 768)    
+        elif global_model_type == 'MultheadAttention_with_bias': # not used actually, will be removed in the future
             self.self_attn = MultiheadAttention(dim_h, num_heads, dropout = self.attn_dropout, batch_first = True)
 
         self.global_model_type = global_model_type
@@ -345,7 +348,7 @@ class GPSLayer(nn.Module):
         assert(torch.sum(attn_bias < 0).item() < 1e-12)
         return attn_bias[:, None, ...].repeat(1, self.num_heads, 1, 1)    
 
-    def forward(self, batch, need_attn_weight = False, edge_attr = None, pos_enc = None):      
+    def forward(self, batch, need_attn_weight = False, edge_attr = None, pos_enc = None, img_seq = None):      
         x, edge_index, node_indices = batch     #node_indices is used to denote the idx of the graph that each node belongs to        
         h = x
         h_in1 = h
@@ -375,13 +378,18 @@ class GPSLayer(nn.Module):
                     self.attn_weights = self.process_attn_weight(attn_weight, mask)
                 #print("h_attn: ", h_attn.shape)
                 #print("attn_weights: ", self.attn_weights.shape)
-            elif self.global_model_type == 'MultheadAttention_with_bias':
-                assert(pos_enc is not None)
+            elif self.global_model_type == 'cross_attention':
+                assert(img_seq is not None)
+                h_attn = self._ca_block(h_dense, img_seq)
+                h_attn = h_attn[mask]
+                
+            elif self.global_model_type == 'MultheadAttention_with_bias': # not used, will be removed in the future
+                assert(pos_enc is not None) #
                 pos_enc, _ = to_dense_batch(pos_enc, node_indices)
                 attn_weight_bias = self.get_attn_weight_bias(pos_enc)
                 h_attn, attn_weight = self._sa_block(h_dense, None, ~mask, need_attn_weight, attn_weight_bias)
                 h_attn = h_attn[mask]
-                
+            
             h_attn = self.dropout_attn(h_attn)
             h_attn = h_in1 + h_attn  # Residual connection.
             if self.layer_norm:
@@ -405,8 +413,13 @@ class GPSLayer(nn.Module):
         x = self.ff_dropout1(self.act_fn_ff(self.ff_linear1(x)))
         return self.ff_dropout2(self.ff_linear2(x))
     
+    def _ca_block(self, x, img_seq):
+        x = self.self_attn(x, img_seq, img_seq, need_weights = False)[0]
+        return x
+    
     def _sa_block(self, x, attn_mask, key_padding_mask, need_attn_weight = False, attn_weight_bias = None):
-        """Self-attention block.
+        """
+        Self-attention block.
         """
         if attn_weight_bias is None:
             if need_attn_weight:
