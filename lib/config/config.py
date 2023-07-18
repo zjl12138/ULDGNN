@@ -111,6 +111,7 @@ cfg.network.gnn_fn.residual = True
 cfg.network.gnn_fn.batch_norm = True
 
 cfg.network.cls_fn = CN()
+cfg.network.cls_fn.clip_val = False
 cfg.network.cls_fn.latent_dims = [256,256]
 #cfg.network.cls_fn.latent_dims = [128,64]
 cfg.network.cls_fn.act_fn = 'LeakyReLU'
@@ -119,6 +120,7 @@ cfg.network.cls_fn.classes = 2
 cfg.network.cls_fn.use_voting_offset = True
 
 cfg.network.loc_fn = CN()
+cfg.network.loc_fn.clip_val = False
 cfg.network.loc_fn.loc_type = 'classifier'
 cfg.network.loc_fn.latent_dims = [256,256]
 #cfg.network.loc_fn.latent_dims = [128,64]

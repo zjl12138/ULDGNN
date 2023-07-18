@@ -178,8 +178,6 @@ if __name__=='__main__':
                 if len(layer_list[window_idx]) < 5:
                     continue
                 
-                is_used_as_test_or_train = True
-                
                 root: bboxTree = bboxTree(0, 0, 2, 2)
                 layer_ids = torch.LongTensor(layer_list[window_idx])
                 
@@ -188,22 +186,52 @@ if __name__=='__main__':
                 
                 types_in_this_window = types[layer_ids]
                 labels_in_this_window = labels[layer_ids]
-                img_assets.append(img_tensor[layer_ids, ...])
-                save_image(img_tensor[layer_ids, ...].transpose(1, 0).reshape(3, -1, 64), 
-                           os.path.join(save_folder, f'{artboard_name}-{graph_id}.png'))
+                img_tensor_in_this_window = img_tensor[layer_ids, ...]
+                # img_assets.append(img_tensor[layer_ids, ...])
+                # save_image(img_tensor[layer_ids, ...].transpose(1, 0).reshape(3, -1, 64), 
+                #           os.path.join(save_folder, f'{artboard_name}-{graph_id}.png'))
                 
                 layers[:, 0 : 2] -= torch.tensor([math.floor(single_image_width * x), math.floor(single_image_height * y)], dtype = torch.float32)                
+                
+                buffer = torch.zeros((single_image_height, single_image_height))
+                
+                layers_after_filtering_ids = []
+                
+                for i in range(layers.shape[0] - 1, -1, -1):
+                    l = torch.clip(layers[i, :], 0, single_image_height)
+                    x, y, w, h = int(l[0]), int(l[1]), int(l[2]), int(l[3])
+                    if torch.sum(buffer[y : y + h, x : x + w]) != w * h:
+                        buffer[y : y + h, x : x + w] *= 0
+                        buffer[y : y + h, x : x + w] += 1
+                        layers_after_filtering_ids.append(i) # we filter out all unvisible layers
+                layers_after_filtering_ids.reverse()
+                layers_after_filtering_ids = torch.LongTensor(layers_after_filtering_ids)
+                layers = layers[layers_after_filtering_ids] # reversing the list is necessary
+                bbox_in_this_window = bbox_in_this_window[layers_after_filtering_ids]
+
+                if layers.shape[0] < 5:
+                    continue
+
+                types_in_this_window = types_in_this_window[layers_after_filtering_ids]
+                labels_in_this_window = labels_in_this_window[layers_after_filtering_ids]
+                img_tensor_in_this_window = img_tensor_in_this_window[layers_after_filtering_ids]
+                img_assets.append(img_tensor_in_this_window)
+                
+                save_image(img_tensor_in_this_window.transpose(1, 0).reshape(3, -1, 64), 
+                           os.path.join(save_folder, f'{artboard_name}-{graph_id}.png'))
+                
+                
                 layers /= single_image_height
-                layers[:, 2 : 4] += layers[:, 0 : 2]
+                layers[:, 2 : 4] += layers[:, 0 : 2] # xywh --> xyxy
                 
                 bbox_in_this_window[:, 0 : 2] -= torch.tensor([math.floor(single_image_width * x), math.floor(single_image_height * y)], dtype = torch.float32)                
                 bbox_in_this_window /= single_image_height
                 
                 bbox_in_this_window -= layers
-                
+
                 for layer in layers:
-                    l_x, l_y, l_w, l_h = layer[0].item(), layer[1].item(), layer[2].item(), layer[3].item()
-                    root.insert(bboxNode(root.num, l_x, l_y, l_x + l_w, l_y + l_h))
+                    # l_x, l_y, l_w, l_h = layer[0].item(), layer[1].item(), layer[2].item(), layer[3].item()
+                    root.insert(bboxNode(root.num, layer[0].item(), layer[1].item(), layer[2].item(), layer[3].item()))
                 edges = root.gen_graph([])
                 
                 json.dump({'layer_rect': layers.numpy().tolist(),
@@ -238,7 +266,9 @@ if __name__=='__main__':
                                     (0, 0))
                 filled_image.save(
                     os.path.join(os.path.join(save_folder, artboard_name+f'-{graph_id}-filled.png')))
-        
+
+                is_used_as_test_or_train = True
+    
         if is_used_as_test_or_train:
             index_list.append({"json": f"{artboard_name}.json", "layerassets": f"{artboard_name}-assets.png", "image": f"{artboard_name}.png"})
                 

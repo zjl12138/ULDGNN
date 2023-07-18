@@ -88,6 +88,7 @@ class Evaluator:
                 return {"merge_recall" : 0.0, 'merge_precision' : 0.0, 
                     "merge_iou_recall" : 0.0, "merge_iou_precision": 0.0}
             else:
+                assert(torch.sum(labels_gt) != 0)
                 return {"merge_recall" : 1.0, 'merge_precision' : 1.0, 
                     "merge_iou_recall" : 1.0, "merge_iou_precision": 1.0}
         merging_groups_pred = merging_components(torch.vstack(merging_groups_nms), layer_rect, pred_labels)
@@ -109,6 +110,7 @@ class Evaluator:
                 merge_recall += torch.sum(adj_gt[merge_comp_gt, :][:, merge_comp_gt] == adj_pred[merge_comp_gt, :][:, merge_comp_gt]).item() / ((merge_comp_gt.shape[0]) ** 2)    
            
             if len(merging_groups_gt) == 0:
+                assert(len(merging_groups_gt) != 0)
                 merge_recall = 1.0
             else:
                 merge_recall /= len(merging_groups_gt)

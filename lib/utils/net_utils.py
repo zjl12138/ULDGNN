@@ -1,7 +1,7 @@
 import torch
 import os
 
-def save_model(net, optim, scheduler, recorder, model_dir, epoch, last=False):
+def save_model(net, optim, scheduler, recorder, model_dir, epoch, checkpoint_name = None, last=False):
     model = {
         'net': net.state_dict(),
         # 'optim': optim.state_dict(),
@@ -11,7 +11,10 @@ def save_model(net, optim, scheduler, recorder, model_dir, epoch, last=False):
     }
     if last:
         print("saving model in epoch ", epoch)
-        torch.save(model, os.path.join(model_dir, 'latest.pth'))
+        if checkpoint_name is None:
+            torch.save(model, os.path.join(model_dir, 'latest.pth'))
+        else:
+            torch.save(model, os.path.join(model_dir, f'{checkpoint_name}-latest.pth')) 
     else:
         print("saving model in epoch ", epoch)
         torch.save(model, os.path.join(model_dir, '{}.pth'.format(epoch)))
@@ -19,7 +22,7 @@ def save_model(net, optim, scheduler, recorder, model_dir, epoch, last=False):
     # remove previous pretrained model if the number of models is too big
     pths = [
         int(pth.split('.')[0]) for pth in os.listdir(model_dir)
-        if pth != 'latest.pth'
+        if 'latest' not in pth
     ]
     if len(pths) <= 20:
         return
@@ -37,7 +40,7 @@ def load_network(net, model_dir, map_location = 'cuda:0', resume=True, epoch=-1,
     if os.path.isdir(model_dir):
         pths = [
             int(pth.split('.')[0]) for pth in os.listdir(model_dir)
-            if pth != 'latest.pth'
+            if 'latest' not in pth
         ]
         if len(pths) == 0 and 'latest.pth' not in os.listdir(model_dir):
             return 0

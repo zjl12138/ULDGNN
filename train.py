@@ -49,17 +49,21 @@ def train(cfg, network, begin_epoch = 0):
     vis = visualizer(cfg.visualizer)
     best_epoch = -1
     best_acc = -1
+    best_merging_acc = {"merge_recall": -1, 'merge_precision': -1, 
+                "merge_iou_recall": -1, "merge_iou_precision": -1}
     
     if begin_epoch > 0 and cfg.train.save_best_acc: 
         if cfg.train.is_distributed:
             if cfg.train.local_rank == 0:
                 best_epoch = begin_epoch
-                val_metric_stats = trainer.val(begin_epoch, val_loader, evaluator, recorder, None)
-                best_acc = val_metric_stats['accuracy']
+                val_metric_stats = trainer.val(begin_epoch, val_loader, evaluator, recorder, None, eval_merge = True)
+                for k, v in best_merging_acc.items():
+                    best_merging_acc[k] = val_metric_stats[k] >= v
         else:
             best_epoch = begin_epoch
             val_metric_stats = trainer.val(begin_epoch, val_loader, evaluator, recorder, None)
-            best_acc = val_metric_stats['accuracy']
+            for k, v in best_merging_acc.items():
+                best_merging_acc[k] = val_metric_stats[k] >= v
     #network.begin_update_edge_attr()
     for epoch in range(begin_epoch, cfg.train.epoch):
         #trainer.val(epoch, val_loader, evaluator, recorder, None)
@@ -78,19 +82,17 @@ def train(cfg, network, begin_epoch = 0):
         #               epoch, True)
         
         if (epoch + 1) % cfg.train.eval_ep == 0:
-            if (not cfg.train.is_distributed)  or (cfg.train.local_rank == 0):
-                val_metric_stats = trainer.val_train(epoch, val_loader, evaluator, recorder, vis if cfg.test.vis_bbox else None, False)
-                
+            if (not cfg.train.is_distributed) or (cfg.train.local_rank == 0):
+                val_metric_stats = trainer.val(epoch, val_loader, evaluator, recorder, vis if cfg.test.vis_bbox else None, False, eval_merge = True)       
                 if cfg.train.save_best_acc:
-                
-                    if val_metric_stats['accuracy'] >= best_acc:
-                        print("model with best accuracy saving...")
-                        best_epoch = epoch
-                        best_acc = val_metric_stats['accuracy']
-                        save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, False)
+                    for k, v in best_merging_acc.items():
+                        if val_metric_stats[k] >= v:
+                            print(f"model with best {k} saving...")
+                            best_merging_acc[k] = val_metric_stats[k]
+                            save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, checkpoint_name = k, last = True)
 
-                print("saving model...")
-                save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, True)
+                # print("saving model...")
+                # save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, True)
 
         #if (epoch+1) % cfg.train.vis_ep == 0:
         #    trainer.val(epoch, val_loader, evaluator, recorder, vis)

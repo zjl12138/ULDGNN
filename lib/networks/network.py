@@ -59,6 +59,7 @@ class Classifier_two_branches(nn.Module):
         super(Classifier_two_branches, self).__init__()
         self.in_dim = cfg.in_dim
         self.latent_dims = cfg.latent_dims
+        self.clip_val = cfg.clip_val
         self.make(cfg)
         
     def make(self, cfg):
@@ -80,7 +81,7 @@ class Classifier_two_branches(nn.Module):
         self.add_module(f'confid_{0}', make_fully_connected_layer(self.in_dim + cfg.classes, cfg.classes // 4,
                                                           '', ''))
         
-    def forward(self, x, clip_val = False):
+    def forward(self, x):
         x_old = x
         for layer_name, fc_layer in self.named_children():
             if 'loc' in layer_name:
@@ -89,8 +90,9 @@ class Classifier_two_branches(nn.Module):
             elif 'confid' in layer_name:
                 confid_scores = fc_layer(torch.cat([x_old, x], dim = 1))
         x = torch.cat([loca_params, confid_scores], dim = 1)
-        if clip_val:
+        if self.clip_val:
             x = torch.nn.Tanh()(x)
+            x = (x + 1) / 2
         return x
 
 class Classifier_with_gnn(nn.Module):
@@ -602,6 +604,9 @@ class Network(nn.Module):
             bboxes = local_params.reshape(-1, 4)
             confidence = confidence.reshape(-1)
             centroids = None
+        elif self.bbox_regression_type == 'absolute':
+            bboxes = local_params
+            centroids = bboxes[:, 0 : 2] + 0.5 * bboxes[:, 2 : 4]
         else:
             raise(f"No such bbox regression type: {self.bbox_regression_type}")
 
@@ -617,7 +622,7 @@ class Network(nn.Module):
         bboxes = torch.cat([torch.gather(bboxes, 1, confidence_argmax.unsqueeze(1) * 4 + i) for i in range(4)], dim = 1)
         return (logits, centroids, bboxes, confidence, voting_offset)
 
-    def contrasitive_loss(self, gnn_feats, layer_rects, bboxes, labels, node_indices):
+    def contrasitive_loss(self, gnn_feats, layer_rects, bboxes, labels, node_indices, use_sigmoid = False):
         alpha = cfg.alpha
         gnn_feats = F.normalize(gnn_feats, p = 2, dim = 1)
         idx = 0
@@ -649,10 +654,18 @@ class Network(nn.Module):
                 sim = x @ x.t()
                 cluster_mask = (contrasitive_labels > 0.5) # in training stage, use gt cluster
                 if not getattr(self, "training"): # in test mode
-                    probs = F.sigmoid(sim)
+                    if use_sigmoid:
+                        probs = torch.nn.Sigmoid()(sim)
+                    else:
+                        probs = (sim + 1) / 2
                     cluster_mask = probs > 0.5
                 cluster_anchors.append(get_box_of_cluster_mask(layer_rects_idx[None, ...].repeat(idx + 1 - prev_idx, 1, 1), cluster_mask))
-                contrasitive_loss = contrasitive_loss + torch.nn.BCEWithLogitsLoss()(sim, contrasitive_labels)
+                if use_sigmoid:
+                    contrasitive_loss = contrasitive_loss + torch.nn.BCEWithLogitsLoss()(sim, contrasitive_labels)
+                else:
+                    sim = (sim + 1.) / 2
+                    sim = torch.clip(sim, 0, 1)
+                    contrasitive_loss = contrasitive_loss + torch.nn.BCELoss()(sim, contrasitive_labels)
                 prev_idx = idx + 1
             idx = idx + 1
         cluster_anchors = torch.cat(cluster_anchors, dim = 0)
@@ -884,6 +897,11 @@ class Network(nn.Module):
             loc_params = out[:, :36]
             confidence = out[:, 36:]
         elif self.loc_type == 'deform_layer_clusters':
+            out = self.loc_fn(gnn_out)
+            assert(out.size(-1) == 5)
+            loc_params = out[:, :4]
+            confidence = out[:, 4]
+        elif self.loc_type == 'regress_absolute_box':
             out = self.loc_fn(gnn_out)
             assert(out.size(-1) == 5)
             loc_params = out[:, :4]

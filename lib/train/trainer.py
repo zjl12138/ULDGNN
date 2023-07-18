@@ -52,7 +52,7 @@ class Trainer(object):
         self.network = network
         self.anchor_box_wh = torch.tensor([[16.0, 8.0], [16.0, 16.0], [16.0, 32.0],
                                            [64.0, 32.0], [64.0, 64.0], [64.0, 128.0],
-                                          [256.0, 128.0], [256.0, 256.0], [512.0, 512.0]], dtype = torch.float32).to(self.device) / 750.0
+                                          [256.0, 128.0], [256.0, 256.0], [256.0, 512.0]], dtype = torch.float32).to(self.device) / 750.0
         # self.anchor_box_wh = torch.tensor([[sqrt(16.0 * 8.0) * 2, sqrt(16.0 * 8.0)], [16.0, 16.0], [sqrt(16.0 * 8.0), 2 * sqrt(16.0 * 8.0)],
         #                                   [sqrt(128.0 * 64.0) * 2, sqrt(128.0 * 64.0)], [128.0, 128.0], [sqrt(128.0 * 64.0), 2 * sqrt(128.0 * 64.0)],
         #                                   [sqrt(128.0 * 256.0) * 2, sqrt(128.0 * 256.0)], [256.0, 256.0], [sqrt(128.0 * 256.0), 2 * sqrt(128.0 * 256.0)]], dtype = torch.float32).to(self.device) / 375.0
@@ -448,6 +448,8 @@ class Trainer(object):
         if eval_ap:
             torch.save(gt_annotations, "gt_annotation.pkl")
             torch.save(det_results, "det_results.pkl")
+        for k, v in merge_eval_stats.items():
+            val_metric_stats[k] = v
         return val_metric_stats
     
     def check_with_human_in_loop(self, epoch, data_loader, evaluator:Evaluator, 
