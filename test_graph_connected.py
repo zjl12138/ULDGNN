@@ -1,3 +1,4 @@
+from networkx import is_connected
 from scipy.sparse import data
 from lib.utils.nms import nms_merge, get_comp_gt_list
 from lib.datasets import make_data_loader
@@ -39,11 +40,11 @@ def get_merging_components_transformer(pred_label : torch.Tensor):
     return merging_list
 
 if __name__=='__main__':
-    cfg.test_dataset.module = 'lib.datasets.light_stage.graph_dataset_new'
-    cfg.test_dataset.path = 'lib/datasets/light_stage/graph_dataset_new.py'
+    cfg.test_dataset.module = 'lib.datasets.light_stage.graph_dataset_small_batch'
+    cfg.test_dataset.path = 'lib/datasets/light_stage/graph_dataset_small_batch.py'
     cfg.test.batch_size = 1
-    cfg.test_dataset.rootDir = '../../dataset/ULDGNN_dataset'
-    cfg.test_dataset.index_json = 'index_test_based_on_sketch.json'
+    cfg.test_dataset.rootDir = '../../dataset/ULDGNN_graph_dataset'
+    cfg.test_dataset.index_json = 'index_train_based_on_sketch.json'
     cfg.test_dataset.bg_color_mode = 'bg_color_orig'
     dataloader = make_data_loader(cfg,is_train=False)
     vis = visualizer(cfg.visualizer)
@@ -58,7 +59,7 @@ if __name__=='__main__':
     precision = 0.0
     recall = 0.0
     acc = 0.
-    # result_transformer = json.load(open("result.json"))
+    result_transformer = json.load(open("result.json"))
     labels_pred = []
     labels_gt = []
     merge_recall = 0.0
@@ -68,14 +69,6 @@ if __name__=='__main__':
         # network(batch)
         nodes_, edges, types, img_tensors, labels, bboxes, nodes, node_indices, file_list  = batch
         # print(node_indices)
-        if torch.sum(labels) == 0:
+        graph_data = Data(nodes, edges)
+        if graph_data.has_isolated_nodes():
             print(file_list)
-        positives += torch.sum(labels)
-        negatives += labels.shape[0] - torch.sum(labels)
-        # print(positives, negatives)
-    
-        vis.visualize_recon_artboard(nodes, img_tensors, file_list[0])
-        vis.visualize_pred_fraglayers(nodes, file_list[0], save_file=True)
-        bboxes = bboxes + nodes
-        vis.visualize_nms(bboxes[labels == 1], file_list[0], save_file = True)
-        

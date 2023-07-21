@@ -39,7 +39,7 @@ def get_merging_components_transformer(pred_label : torch.Tensor):
 
 if __name__=='__main__':
     cfg.test.batch_size = 1
-    cfg.test_dataset.rootDir = '../../dataset/EGFE_graph_dataset'
+    cfg.test_dataset.rootDir = '../../dataset/EGFE_graph_dataset_refine'
     cfg.test_dataset.index_json = 'index_testv2.json'
     cfg.test_dataset.bg_color_mode = 'bg_color_orig'
     dataloader = make_data_loader(cfg,is_train = False)
@@ -55,7 +55,7 @@ if __name__=='__main__':
     precision = 0.0
     recall = 0.0
     acc = 0.
-    result_transformer = json.load(open("test_egfe_orig_data_resplit.json"))
+    result_transformer = json.load(open("eval_egfe_resplit_results.json", "r"))
     labels_pred = []
     labels_gt = []
     merge_recall = 0.0
@@ -74,12 +74,14 @@ if __name__=='__main__':
         file_path, artboard_name = os.path.split(file_list[0])
         artboard_name = artboard_name.split(".")[0]
         pred_result = torch.LongTensor(result_transformer[artboard_name+".json"])
+        # print(artboard_name)
         pred_result_with_text = torch.zeros(nodes.shape[0]).long()
-
+        # print(pred_result.shape, nodes.shape)
         assert(pred_result.shape[0] + torch.sum(types == text_type) == nodes.shape[0])
         pred_result_with_text_3_class = torch.zeros(nodes.shape[0]).long()
 
-        pred_label = torch.masked_fill(pred_result, pred_result != 0, 1)
+        pred_result_clone = pred_result.clone()
+        pred_label = torch.masked_fill(pred_result_clone, pred_result_clone != 0, 1)
         pred_result_with_text[types != text_type] = pred_label
         pred_result_with_text_3_class[types != text_type] = pred_result
 
@@ -91,6 +93,9 @@ if __name__=='__main__':
         #vis.visualize_nms_with_labels(bboxes[labels == 1], torch.ones((bboxes[labels]==1).shape[0]), file_list[0], mode = 'test', save_file = True )
         adj_gt = get_gt_adj(bboxes, labels)
         merging_list = get_merging_components_transformer(pred_result_with_text_3_class)
+        if artboard_name == '347':
+            print(pred_label)
+            print(merging_list)
         adj_pred = get_pred_adj(merging_list, nodes.shape[0], nodes.device)
         
         merging_iou_recall += evaluator.evaluate_merging_iou(merging_groups_gt, merging_list)

@@ -358,7 +358,7 @@ def generate_graphs(idx_mapping, artboard_list: List[str],
     
 if __name__=='__main__':
     rootdir="/media/sda1/ljz-workspace/dataset/aliartboards_refine/"
-    outDir = "/media/sda1/ljz-workspace/dataset/transformer_dataset"
+    outDir = "/media/sda1/ljz-workspace/dataset/uldgnn_data_to_transformer_dataset"
     logdir = 'out'
     os.makedirs(outDir, exist_ok = True)
     os.makedirs(logdir, exist_ok = True)

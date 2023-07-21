@@ -192,29 +192,27 @@ if __name__=='__main__':
                 #           os.path.join(save_folder, f'{artboard_name}-{graph_id}.png'))
                 
                 layers[:, 0 : 2] -= torch.tensor([math.floor(single_image_width * x), math.floor(single_image_height * y)], dtype = torch.float32)                
-                
+                '''
                 buffer = torch.zeros((single_image_height, single_image_height))
-                
                 layers_after_filtering_ids = []
-                
-                for i in range(layers.shape[0] - 1, -1, -1):
+                for i in range(layers.shape[0] - 1, -1, -1): # we should traverse foreground layers first
                     l = torch.clip(layers[i, :], 0, single_image_height)
                     l_x, l_y, l_w, l_h = int(l[0]), int(l[1]), int(l[2]), int(l[3])
                     if torch.sum(buffer[l_y : l_y + l_h, l_x : l_x + l_w]) != l_w * l_h:
                         buffer[l_y : l_y + l_h, l_x : l_x + l_w] *= 0
                         buffer[l_y : l_y + l_h, l_x : l_x + l_w] += 1
                         layers_after_filtering_ids.append(i) # we filter out all unvisible layers
-                layers_after_filtering_ids.reverse()
+                layers_after_filtering_ids.reverse() # now we traverse background layers first
                 layers_after_filtering_ids = torch.LongTensor(layers_after_filtering_ids)
                 layers = layers[layers_after_filtering_ids] # reversing the list is necessary
                 bbox_in_this_window = bbox_in_this_window[layers_after_filtering_ids]
 
                 if layers.shape[0] < 5:
                     continue
-
                 types_in_this_window = types_in_this_window[layers_after_filtering_ids]
                 labels_in_this_window = labels_in_this_window[layers_after_filtering_ids]
                 img_tensor_in_this_window = img_tensor_in_this_window[layers_after_filtering_ids, ...]
+                '''
                 img_assets.append(img_tensor_in_this_window)
                 
                 save_image(img_tensor_in_this_window.transpose(1, 0).reshape(3, -1, 64), 

@@ -40,9 +40,9 @@ def get_merging_components_transformer(pred_label : torch.Tensor):
 if __name__=='__main__':
     
     vis = visualizer(cfg.visualizer)
-    rootDir = "/media/sda1/cyn-workspace/sketch_transformer_dataset"
+    rootDir = "/media/sda1/ljz-workspace/dataset/EGFE_data_from_uldgnn_data"
     #rootDir = "../../dataset/transformer_dataset"
-    index_test_list = json.load(open(f"{rootDir}/index.json"))
+    index_test_list = json.load(open(f"{rootDir}/index_tmp.json"))
     positive_labels_nums = 0
     for idx in tqdm(index_test_list):
         artboard_path = os.path.join(rootDir, idx['image'])
@@ -57,11 +57,12 @@ if __name__=='__main__':
             bbox = layer['rect']
             xywh = [bbox['x'],  bbox['y'],  bbox['width'],  bbox['height']]
             label = layer['label']
+            '''
             if layer['label'] == 3:
                 label = 1
             elif layer['label'] == 1:
                 label = 0
-                
+            '''    
             if label == 2:
                 positive_labels_nums += 1
                 if len(tmp) == 0:

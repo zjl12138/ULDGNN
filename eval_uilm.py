@@ -54,7 +54,7 @@ if __name__=='__main__':
     cfg.test_dataset.path = 'lib/datasets/light_stage/graph_dataset_new.py'
     
     cfg.test.batch_size = 1
-    cfg.test_dataset.rootDir = '../../dataset/ULDGNN_dataset'
+    cfg.test_dataset.rootDir = '../../dataset/ULDGNN_graph_dataset'
     cfg.test_dataset.index_json = 'index_test_based_on_sketch.json'
     cfg.test_dataset.bg_color_mode = 'bg_color_orig'
     dataloader = make_data_loader(cfg,is_train = False)

@@ -100,7 +100,7 @@ class Dataset(data.Dataset):
     
     def read_img(self, path):
         #return Image.open(path).convert("RGB")
-        if self.bg_color_mode == 'none':
+        if self.bg_color_mode == '':
             img_tensor = T.ToTensor()(Image.open(path).convert('RGB'))
         else:
             img_tensor = T.ToTensor()(Image.open(path).convert('RGBA'))
