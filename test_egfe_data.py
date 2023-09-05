@@ -42,7 +42,7 @@ if __name__=='__main__':
     vis = visualizer(cfg.visualizer)
     rootDir = "/media/sda1/ljz-workspace/dataset/EGFE_data_from_uldgnn_data"
     #rootDir = "../../dataset/transformer_dataset"
-    index_test_list = json.load(open(f"{rootDir}/index_tmp.json"))
+    index_test_list = json.load(open(f"{rootDir}/index_test_based_on_sketch.json"))
     positive_labels_nums = 0
     for idx in tqdm(index_test_list):
         artboard_path = os.path.join(rootDir, idx['image'])

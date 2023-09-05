@@ -74,7 +74,7 @@ if __name__=='__main__':
     
     cfg.test.batch_size = 1
     cfg.test_dataset.rootDir = '../../dataset/ULDGNN_dataset'
-    cfg.test_dataset.index_json = 'index_test_based_on_sketch.json'
+    cfg.test_dataset.index_json = 'index_train_based_on_sketch.json'
     cfg.test_dataset.bg_color_mode = 'bg_color_orig'
     outDir = "../../dataset/EGFE_data_from_uldgnn_data"
     os.makedirs(outDir, exist_ok=True)
@@ -115,20 +115,17 @@ if __name__=='__main__':
         file_path, artboard_name = os.path.split(file_list[0])
         artboard_name = artboard_name.split(".")[0]
         bboxes = bboxes + nodes
+        prev_box = torch.FloatTensor([2, 2, -1, -1])
         for i in range(nodes.shape[0]):
             class_ = type_id_to_class[types[i].item()]
             label_ = 0
             if labels[i] == 1:
-                if not merge_type:
-                    merge_type = True
-                    label_ = 2
+                if torch.sum(torch.abs(bboxes[i] - prev_box)) < 1e-6:
+                    label_ = 1
                 else:
-                    if torch.sum(torch.abs(bboxes[i] - bboxes[i - 1])) < 1e-6:
-                        label_ = 1
-                    else:
-                        label_ = 2
+                    label_ = 2
+                    prev_box = bboxes[i]
             else:
-                merge_type = False
                 label_ = 0
             color = [0, 0, 0, 0]
             
@@ -159,7 +156,7 @@ if __name__=='__main__':
                 open(f"{outDir}/{artboard_name}.json","w"))
         os.system(f"cp {cfg.test_dataset.rootDir}/{artboard_name}/{artboard_name}-assets_rerefine.png {outDir}/{artboard_name}-assets.png")
         os.system(f"cp {cfg.test_dataset.rootDir}/{artboard_name}/{artboard_name}.png {outDir}/{artboard_name}.png")
-           
+        os.system(f"cp {cfg.test_dataset.rootDir}/{cfg.test_dataset.index_json} {outDir}/{cfg.test_dataset.index_json}")
         '''
         layer_info = {"id":id,
             "name":name,  
