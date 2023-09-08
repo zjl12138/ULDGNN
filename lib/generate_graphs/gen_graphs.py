@@ -176,7 +176,7 @@ async def generate_graph(json_path:str, output_dir:str):
         split_layers.append(tmp_list)
     sum = 0
     for idx, layer_list in enumerate(split_layers):
-        sum += len(layer_slist)
+        sum += len(layer_list)
         await generate_single_graph(layer_list,
                         os.path.join(output_dir, file_name+f"-{idx}.json"),
                         artboard_height,artboard_width)
