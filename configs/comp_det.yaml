@@ -1,11 +1,11 @@
-gpus: [0, 1, 2, 3]
+gpus: [1, 2, 3]
 
 outDir: "comp_det"
 train:
     lr: 1e-4
     local_rank: 0
     save_best_acc: True
-    is_distributed: False
+    is_distributed: True
     eval_ep: 10
     batch_size: 16
     load_all_pretrained: False
@@ -17,14 +17,14 @@ train_dataset:
     module: 'lib.datasets.light_stage.rico_graph_dataset'
     path: 'lib/datasets/light_stage/rico_graph_dataset.py'
     rootDir: '../../dataset/rico_graph'
-    index_json: 'index.json'
+    index_json: 'index_train.json'
     bg_color_mode: 'bg_color_orig'
 
 test_dataset:
     module: 'lib.datasets.light_stage.rico_graph_dataset'
     path: 'lib/datasets/light_stage/rico_graph_dataset.py'
     rootDir: '../../dataset/rico_graph'
-    index_json: 'index.json'
+    index_json: 'index_test.json'
     bg_color_mode: 'bg_color_orig'
 
 test:
