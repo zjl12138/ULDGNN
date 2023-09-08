@@ -9,7 +9,7 @@ from lib.evaluators import Evaluator
 from lib.utils import load_model, save_model,load_network
 
 def test(cfg, network):
-    trainer = make_trainer(network)
+    trainer = make_trainer(cfg.train, network)
     optimizer = make_optimizer(cfg, network)
     scheduler = make_scheduler(cfg, optimizer)
     recorder = make_recorder(cfg.recorder)

@@ -29,7 +29,7 @@ class FocalLoss(nn.Module):
             loss = loss.sum()
         return loss
 
-def ciou_loss(box1, box2):
+def ciou_loss(box1, box2, box_format = 'xywh'):
     """
     input:
         box1: shape = [batch_size,  4(xywh)]  xy is the left-up corner of bbox
@@ -38,17 +38,28 @@ def ciou_loss(box1, box2):
         ciou: shepe = [batch_size, 1]
     """
     # up_left corner and right-down corner
-    b1_xy = box1[..., :2]
-    b1_wh = box1[..., 2:4]
-    #b1_wh_half = b1_wh / 2
-    b1_mins = b1_xy 
-    b1_maxs = b1_xy + b1_wh
+    if box_format == 'xywh':
+        b1_xy = box1[..., :2]
+        b1_wh = box1[..., 2:4]
+        #b1_wh_half = b1_wh / 2
+        b1_mins = b1_xy 
+        b1_maxs = b1_xy + b1_wh
 
-    b2_xy = box2[..., :2]
-    b2_wh = box2[..., 2:4]
-    #b2_wh_half = b2_wh / 2
-    b2_mins = b2_xy
-    b2_maxs = b2_xy + b2_wh
+        b2_xy = box2[..., :2]
+        b2_wh = box2[..., 2:4]
+        #b2_wh_half = b2_wh / 2
+        b2_mins = b2_xy
+        b2_maxs = b2_xy + b2_wh
+    else:
+        b1_xy = box1[..., :2]
+        b1_mins = box1[..., :2]
+        b1_maxs = box1[..., 2:4]
+        b1_wh = b1_maxs - b1_mins
+        #b2_wh_half = b2_wh / 2
+        b2_xy = box2[..., :2]
+        b2_mins = box2[..., :2]
+        b2_maxs = box2[..., 2:4]
+        b2_wh = b2_maxs - b2_mins
     # iou
     intersect_mins = torch.max(b1_mins, b2_mins)
     intersect_maxs = torch.min(b1_maxs, b2_maxs)

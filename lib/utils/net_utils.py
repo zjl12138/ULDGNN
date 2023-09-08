@@ -4,9 +4,9 @@ import os
 def save_model(net, optim, scheduler, recorder, model_dir, epoch, checkpoint_name = None, last=False):
     model = {
         'net': net.state_dict(),
-        # 'optim': optim.state_dict(),
-        # 'scheduler': scheduler.state_dict(),
-        # 'recorder': recorder.state_dict(),
+        'optim': optim.state_dict(),
+        'scheduler': scheduler.state_dict(),
+        'recorder': recorder.state_dict(),
         'epoch': epoch
     }
     if last:

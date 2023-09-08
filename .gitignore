@@ -5,6 +5,7 @@ wandb/
 *.json
 *.out
 output/
+comp_det/
 __pycache__/
 *.py[cod]
 *$py.class

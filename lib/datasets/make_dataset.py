@@ -3,7 +3,7 @@ import imp
 import time
 import torch
 from torch.utils.data import RandomSampler, BatchSampler, SequentialSampler ,DataLoader, Sampler
-from lib.datasets.light_stage.graph_dataset import collate_fn
+
 import numpy as np
 import torch.distributed as dist
 import math
@@ -110,7 +110,7 @@ def make_data_loader(cfg, is_train = True, is_distributed = False):
     sampler = make_sampler(batch_size, is_train, dataset, drop_last, shuffle,  is_distributed)
     data_loader = DataLoader(dataset, 
                             batch_sampler=sampler,
-                            collate_fn=collate_fn,
+                            collate_fn = dataset.collate_fn,
                             worker_init_fn=worker_init_fn)
     return data_loader
 

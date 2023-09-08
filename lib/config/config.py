@@ -27,6 +27,7 @@ cfg.recorder = CN()
 cfg.recorder.record_dir=''
 cfg.visualizer = CN()
 cfg.visualizer.vis_dir =''
+cfg.visualizer.img_size = (540, 960)
 
 cfg.train_dataset = CN()
 
@@ -46,6 +47,8 @@ cfg.test_dataset.normalize_coord = False
 cfg.test_dataset.bg_color_mode = cfg.train_dataset.bg_color_mode = 'None'
 
 cfg.train = CN()
+cfg.train.train_module = "lib.train.trainer"
+cfg.train.train_path = "lib/train/trainer.py"
 cfg.train.load_all_pretrained = False
 cfg.train.begin_update_edge_attr_epoch = -1
 cfg.train.is_distributed = False
@@ -174,6 +177,7 @@ def make_cfg(args):
     if cfg.train.is_distributed:
         print("visible gpus: ", cfg.gpus)
         os.environ['CUDA_VISIBLE_DEVICES'] = ', '.join([str(gpu) for gpu in cfg.gpus])
+    os.makedirs(cfg.outDir, exist_ok=True)
     cfg.recorder.record_dir = os.path.join(cfg.outDir, cfg.exp_name, 'records')
     cfg.visualizer.vis_dir = os.path.join(cfg.outDir, cfg.exp_name, 'imgs')
     cfg.model_dir=os.path.join(cfg.outDir, cfg.exp_name,"checkpoints")

@@ -502,5 +502,5 @@ class Trainer(object):
                     
                     visualizer.remove_files()
         return val_metric_stats
-def make_trainer(network):
-    return Trainer(network)
+# def make_trainer(network):
+#    return Trainer(network)

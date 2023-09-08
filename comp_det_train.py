@@ -1,12 +1,14 @@
-from torch.serialization import load
-from lib.utils.net_utils import load_network, load_partial_network
+import sys
+sys.path.append("..")
+
 from lib.datasets import make_data_loader
 from lib.config import cfg
-from lib.visualizers import visualizer
+from lib.visualizers import comp_det_visualizer
 from lib.networks import make_network
 import torch
-from lib.train import make_optimizer, make_recorder, make_scheduler, make_trainer
-from lib.evaluators import Evaluator
+from lib.train import make_optimizer, make_recorder, make_scheduler
+from lib.train import make_trainer
+from lib.evaluators.comp_det_eval import Evaluator
 from lib.utils import load_model, save_model
 import torch.distributed as dist
 import os
@@ -35,22 +37,21 @@ def train(cfg, network, begin_epoch = 0):
     recorder = make_recorder(cfg.recorder)
     evaluator = Evaluator()
     
-    '''begin_epoch = load_model(network, 
+    begin_epoch = load_model(network, 
                             optimizer,
-                             scheduler,
+                            scheduler,
                             recorder, 
                             cfg.model_dir, 
                             cfg.train.resume)
-    '''
-    train_loader = make_data_loader(cfg, is_train=True, is_distributed = cfg.train.is_distributed)
+    
+    train_loader = make_data_loader(cfg, is_train = True, is_distributed = cfg.train.is_distributed)
     print("Training artboards: ", len(train_loader))
-    val_loader = make_data_loader(cfg, is_train=False)
+    val_loader = make_data_loader(cfg, is_train = False)
     print("validating artboards: ", len(val_loader))
-    vis = visualizer(cfg.visualizer)
+    vis = comp_det_visualizer(cfg.visualizer)
     best_epoch = -1
     best_acc = -1
-    best_merging_acc = {"merge_recall": -1, 'merge_precision': -1, 
-                "merge_iou_recall": -1, "merge_iou_precision": -1}
+    best_merging_acc = {"accuracy": -1}
     
     if begin_epoch > 0 and cfg.train.save_best_acc: 
         if cfg.train.is_distributed:
@@ -58,12 +59,12 @@ def train(cfg, network, begin_epoch = 0):
                 best_epoch = begin_epoch
                 val_metric_stats = trainer.val(begin_epoch, val_loader, evaluator, recorder, None, eval_merge = True)
                 for k, v in best_merging_acc.items():
-                    best_merging_acc[k] = val_metric_stats[k] >= v
+                    best_merging_acc[k] = val_metric_stats[k]
         else:
             best_epoch = begin_epoch
             val_metric_stats = trainer.val(begin_epoch, val_loader, evaluator, recorder, None)
             for k, v in best_merging_acc.items():
-                best_merging_acc[k] = val_metric_stats[k] >= v
+                best_merging_acc[k] = val_metric_stats[k]
     #network.begin_update_edge_attr()
     for epoch in range(begin_epoch, cfg.train.epoch):
         #trainer.val(epoch, val_loader, evaluator, recorder, None)
@@ -76,20 +77,23 @@ def train(cfg, network, begin_epoch = 0):
         if cfg.train.is_distributed:
             train_loader.batch_sampler.sampler.set_epoch(epoch)
         trainer.train(epoch, train_loader, optimizer, recorder, evaluator)
-        scheduler.step() 
+        scheduler.step()
+        
         #if (epoch+1) % cfg.train.save_ep == 0:
         #    save_model(network, optimizer,scheduler, recorder, cfg.model_dir,
         #               epoch, True)
         
         if (epoch + 1) % cfg.train.eval_ep == 0:
             if (not cfg.train.is_distributed) or (cfg.train.local_rank == 0):
-                val_metric_stats = trainer.val(epoch, val_loader, evaluator, recorder, vis if cfg.test.vis_bbox else None, False, eval_merge = True)       
+                val_metric_stats = trainer.val(epoch, val_loader, evaluator, recorder,
+                                               vis if cfg.test.vis_bbox else None, False)       
                 if cfg.train.save_best_acc:
                     for k, v in best_merging_acc.items():
                         if val_metric_stats[k] >= v:
                             print(f"model with best {k} saving...")
                             best_merging_acc[k] = val_metric_stats[k]
-                            save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, checkpoint_name = k, last = True)
+                            save_model(network, optimizer, scheduler, recorder, cfg.model_dir,
+                                       epoch, checkpoint_name = k, last = True)
 
                 # print("saving model...")
                 # save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, True)
@@ -98,22 +102,7 @@ def train(cfg, network, begin_epoch = 0):
         #    trainer.val(epoch, val_loader, evaluator, recorder, vis)
         
 
-if __name__=='__main__':
-    '''dataloader = make_data_loader(cfg,is_train=False)
-    vis = visualizer(cfg.visualizer)
-    network = make_network(cfg.network)
-    print(network)
-    optim = make_optimizer(cfg, network)
-    sched = make_scheduler(cfg, optim)
-    trainer = make_trainer(network)
-    recorder = make_recorder(cfg.recorder)
-    evaluator = Evaluator()
-    
-    
-    trainer.train(0, dataloader, optim, recorder, evaluator )
-        #network(batch)
-        #vis.visualize(nodes, bboxes, file_list[0])
-    '''
+if __name__ == '__main__':
     if cfg.train.is_distributed:
         print("distributed training! using device ", int(os.environ['RANK']))
         
@@ -125,15 +114,19 @@ if __name__=='__main__':
     network = make_network(cfg.network)
     if cfg.train.is_distributed:
         network = torch.nn.SyncBatchNorm.convert_sync_batchnorm(network)
+    '''
     print("trained parameters----------------------------")       
     for n, v in network.named_parameters():
         if v.requires_grad:
             print(n)
+    '''
     total_sum = sum(p.numel() for p in network.parameters())
-    print(total_sum / 1024 / 1024)
+    print("Number of parameters: ", total_sum / 1024 / 1024)
+    '''
     if cfg.train.load_all_pretrained:
         begin_epoch = load_network(network, cfg.model_dir)
     else:
         begin_epoch = load_partial_network(network, cfg.model_dir)
-    print(begin_epoch)
-    train(cfg, network, begin_epoch)
+    '''
+    # print(begin_epoch)
+    train(cfg, network)
