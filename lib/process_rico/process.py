@@ -83,12 +83,12 @@ class Processor(Thread):
     def generate_assets(self, id, root, node_num):
         # print("nodenum: ", node_num)
         x1, y1, x2, y2 = root['bounds']
-        w, h = x2 - x1, y2 - y1
+        w, h = (1440, 2560)
         img_path = os.path.join(root_dir, self.dataset_name, str(id) + ".jpg")
         if x2 <= x1 or y2 <= y1:
             print("wrong artboard: ", id)
             return
-        img = Image.open(img_path).resize((x2 - x1, y2 - y1))
+        img = Image.open(img_path).resize((1440, 2560))
         edges = []
         layer_rect = [0 for i in range(node_num)]
         labels = [0 for i in range(node_num)]

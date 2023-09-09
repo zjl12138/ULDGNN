@@ -65,6 +65,12 @@ def train(cfg, network, begin_epoch = 0):
             val_metric_stats = trainer.val(begin_epoch, val_loader, evaluator, recorder, None)
             for k, v in best_merging_acc.items():
                 best_merging_acc[k] = val_metric_stats[k]
+    
+    '''
+    if not cfg.train.is_distributed or cfg.train.local_rank == 0:
+            val_metric_stats = trainer.val(epoch, val_loader, evaluator, recorder,
+                                               vis if cfg.test.vis_bbox else None, False)
+    '''
     #network.begin_update_edge_attr()
     for epoch in range(begin_epoch, cfg.train.epoch):
         #trainer.val(epoch, val_loader, evaluator, recorder, None)
@@ -86,14 +92,14 @@ def train(cfg, network, begin_epoch = 0):
         if (epoch + 1) % cfg.train.eval_ep == 0:
             if (not cfg.train.is_distributed) or (cfg.train.local_rank == 0):
                 val_metric_stats = trainer.val(epoch, val_loader, evaluator, recorder,
-                                               vis if cfg.test.vis_bbox else None, False)       
+                                                vis if cfg.test.vis_bbox else None, False)       
                 if cfg.train.save_best_acc:
                     for k, v in best_merging_acc.items():
                         if val_metric_stats[k] >= v:
                             print(f"model with best {k} saving...")
                             best_merging_acc[k] = val_metric_stats[k]
                             save_model(network, optimizer, scheduler, recorder, cfg.model_dir,
-                                       epoch, checkpoint_name = k, last = True)
+                                        epoch, last = True)
 
                 # print("saving model...")
                 # save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, True)

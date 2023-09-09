@@ -2,12 +2,12 @@ gpus: [1, 2, 3]
 
 outDir: "comp_det"
 train:
-    lr: 1e-4
+    lr: 5e-5
     local_rank: 0
     save_best_acc: True
     is_distributed: True
     eval_ep: 10
-    batch_size: 16
+    batch_size: 32
     load_all_pretrained: False
     train_module: "lib.train.comp_det_trainer"
     train_path: "lib/train/comp_det_trainer.py"
@@ -68,6 +68,10 @@ network:
     reg_loss:
         type: 'ciou_loss'
         weight: 10
+    
+    cls_loss:
+        type: 'cross_entropy_loss'
+        weight: 1
 
     gnn_fn:
       gnn_type: 'GPSModel'

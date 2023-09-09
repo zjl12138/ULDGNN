@@ -122,7 +122,7 @@ class Trainer(object):
             assets_img, layer_rect, edges, bbox, labels, node_indices, artboard_id = batch
             
             with torch.no_grad():
-                output, loss, loss_stats = self.network(batch, self.anchor_box_wh)
+                output, loss, loss_stats = self.network(batch)
                 #val_stats = evaluator.evaluate(output, batch[4])
                 loss_stats = self.reduce_loss_stats(loss_stats)
                 
@@ -183,6 +183,4 @@ class Trainer(object):
             torch.save(gt_annotations, "gt_annotation.pkl")
             torch.save(det_results, "det_results.pkl")
         '''
-        for k, v in merge_eval_stats.items():
-            val_metric_stats[k] = v
         return val_metric_stats

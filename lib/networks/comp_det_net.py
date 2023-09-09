@@ -40,6 +40,7 @@ class Network(nn.Module):
         logits, local_params = output
         loss_stats = {}
         cls_loss = self.cls_loss_fn(logits, labels)
+        
         loss =  cfg.cls_loss.weight * cls_loss
         reg_loss = self.reg_loss_fn(local_params, bboxes, box_format = 'xyxy')  # reg is short for regression
         loss =  loss + cfg.reg_loss.weight * reg_loss

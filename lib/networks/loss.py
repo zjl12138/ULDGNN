@@ -84,12 +84,14 @@ def ciou_loss(box1, box2, box_format = 'xywh'):
     return ciou	
 
 def make_classifier_loss(cfg):
+    print("Making regression loss ",cfg.type)
     if cfg.type == 'focal_loss':
         return FocalLoss(cfg.alpha, cfg.gamma, cfg.reduction)
-    if cfg.type == 'cross_entropy_loss':
+    elif cfg.type == 'cross_entropy_loss':
         return torch.nn.CrossEntropyLoss()
 
 def make_regression_loss(cfg):
+    print("Making regression loss ",cfg.type)
     if cfg.type == 'huber_loss':
         return torch.nn.HuberLoss(cfg.reduction, cfg.delta) 
     elif cfg.type == 'ciou_loss':
