@@ -4,7 +4,7 @@ from tensorboardX import SummaryWriter
 import os
 import wandb
 from lib.config.yacs import _to_dict
-
+from lib.config.config import cfg as CFG
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
     window or the global series average.
@@ -35,6 +35,8 @@ class SmoothedValue(object):
 
 class Recorder(object):
     def __init__(self, cfg):
+        if CFG.train.local_rank > 0:
+            return
         log_dir = cfg.record_dir
         self.writer = SummaryWriter(log_dir)
         self.epoch = 0
@@ -45,10 +47,14 @@ class Recorder(object):
         self.data_time =  SmoothedValue()
     
     def update_loss_stats(self, loss_dict):
+        if CFG.train.local_rank > 0:
+            return 
         for k ,v in loss_dict.items():
             self.loss_stats[k].update(v.detach().cpu())
     
     def record(self, prefix, step=-1, loss_stats = None):
+        if CFG.train.local_rank > 0:
+            return
         loss_stats = loss_stats if loss_stats else self.loss_stats
         step = step if step>=0 else self.step
         pattern = prefix+'/{}'
@@ -61,14 +67,20 @@ class Recorder(object):
                 self.writer.add_scalar(pattern.format(k), v, step)
 
     def state_dict(self):
+        if CFG.train.local_rank > 0:
+            return
         scalar_dict = {}
         scalar_dict['step'] = self.step
         return scalar_dict
 
     def load_state_dict(self, scalar_dict):
+        if CFG.train.local_rank > 0:
+            return
         self.step = scalar_dict['step']
 
     def __str__(self):
+        if CFG.train.local_rank > 0:
+            return
         loss_state = []
         for k, v in self.loss_stats.items():
             loss_state.append('{}: {:.4f}'.format(k, v.avg))

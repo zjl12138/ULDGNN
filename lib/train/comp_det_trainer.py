@@ -70,6 +70,9 @@ class Trainer(object):
             loss.backward()
             optimizer.step()
             
+            if cfg.local_rank > 0:
+                continue
+            
             recorder.step += 1
 
             loss_stats = self.reduce_loss_stats(loss_stats)

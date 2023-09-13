@@ -18,6 +18,7 @@ import torch
 
 cfg = CN()
 
+cfg.mode = 'train'
 cfg.outDir = 'output'
 cfg.exp_name=''
 cfg.model_dir = ''
@@ -185,14 +186,17 @@ def make_cfg(args):
     cfg.train.local_rank = args.local_rank
     cfg.train.epoch = args.epochs
     cfg.train.lr = args.lr
+    cfg.mode = args.mode
     print(cfg.model_dir)
     os.makedirs(cfg.recorder.record_dir, exist_ok=True)
     os.makedirs(cfg.visualizer.vis_dir, exist_ok=True)
     os.makedirs(cfg.model_dir, exist_ok=True)
     os.makedirs(cfg.config_dir, exist_ok=True)
-    yaml.dump(_to_dict(cfg), open(os.path.join(cfg.config_dir, "config.yaml"),"w"))
+    if cfg.mode != 'test':
+        yaml.dump(_to_dict(cfg), open(os.path.join(cfg.config_dir, "config.yaml"),"w"))
     
 parser = argparse.ArgumentParser()
+parser.add_argument("--mode", default = "train", type=str)
 parser.add_argument("--cfg_file", default = "configs/default.yaml", type=str)
 parser.add_argument("--exp_name", type=str)
 parser.add_argument('--train_mode', type=int, default=0)

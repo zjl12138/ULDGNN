@@ -99,10 +99,10 @@ def train(cfg, network, begin_epoch = 0):
                             print(f"model with best {k} saving...")
                             best_merging_acc[k] = val_metric_stats[k]
                             save_model(network, optimizer, scheduler, recorder, cfg.model_dir,
-                                        epoch, last = True)
+                                        epoch, True)
 
-                # print("saving model...")
-                # save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, True)
+                print("saving model...")
+                save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, False)
 
         #if (epoch+1) % cfg.train.vis_ep == 0:
         #    trainer.val(epoch, val_loader, evaluator, recorder, vis)

@@ -24,7 +24,7 @@ def save_model(net, optim, scheduler, recorder, model_dir, epoch, checkpoint_nam
         int(pth.split('.')[0]) for pth in os.listdir(model_dir)
         if 'latest' not in pth
     ]
-    if len(pths) <= 20:
+    if len(pths) <= 5:
         return
     os.system('rm {}'.format(
         os.path.join(model_dir, '{}.pth'.format(min(pths)))))

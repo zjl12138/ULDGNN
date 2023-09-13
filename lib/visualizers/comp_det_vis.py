@@ -54,18 +54,18 @@ class comp_det_visualizer:
         x[3] = clip_val(x[3], 0, 1)
         return (int(x[0] * W), int(x[1] * H), int(x[2] * W), int(x[3] * H))
     
-    def visualize_box(self, layer_rects, pred_label, artboard_id):
-        img_1 = Image.open(os.path.join(self.vis_dir, f'{artboard_id}.png')).resize(self.img_size)
+    def visualize_layer(self, layer_rects, pred_label, artboard_id):
+        img_1 = Image.open(os.path.join(self.img_folder, f'{artboard_id}.jpg')).resize(self.img_size)
         # draw rectangles in the image
         img_draw = ImageDraw.Draw(img_1)       
         for layer_rect, layer_id in zip(layer_rects, pred_label):
             img_draw.rectangle(self.scale_to_img(layer_rect), outline=(0, 0, 255), width=1)
             x, y, w, h = self.scale_to_img(layer_rect)
-            img_draw.text((x, y), self.label_to_str[layer_id], fill=(0, 0, 255))
+            img_draw.text((x, y), self.label_to_str[layer_id.cpu().item()], fill=(0, 0, 255))
         return ToTensor()(img_1)
     
     def visualize_box(self, boxes, artboard_id):
-        img_1 = Image.open(os.path.join(self.vis_dir, f'{artboard_id}.png')).resize(self.img_size)
+        img_1 = Image.open(os.path.join(self.img_folder, f'{artboard_id}.jpg')).resize(self.img_size)
         # draw rectangles in the image
         img_draw = ImageDraw.Draw(img_1)       
         for box in boxes:
@@ -74,8 +74,8 @@ class comp_det_visualizer:
         return ToTensor()(img_1)
     
     def visualize_overall(self, layer_rect, pred_label, labels, pred_bboxes, gt_bboxes, artboard_id):
-        comp_pred_img = self.visualize_box(layer_rect, pred_label, artboard_id)
-        comp_pred_gt = self.visualize_box(layer_rect, labels, artboard_id)
+        comp_pred_img = self.visualize_layer(layer_rect, pred_label, artboard_id)
+        comp_pred_gt = self.visualize_layer(layer_rect, labels, artboard_id)
         group_pred_img = self.visualize_box(pred_bboxes, artboard_id)
         group_gt_img = self.visualize_box(gt_bboxes, artboard_id)
         compare_img = torch.cat((comp_pred_img, comp_pred_gt, group_pred_img, group_gt_img), dim = 2)
