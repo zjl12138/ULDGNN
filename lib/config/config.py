@@ -34,7 +34,7 @@ cfg.train_dataset = CN()
 
 cfg.train_dataset.module = 'lib.datasets.light_stage.graph_dataset'
 cfg.train_dataset.path = 'lib/datasets/light_stage/graph_dataset.py'
-cfg.train_dataset.rootDir = '../../dataset/graph_dataset_rerefine'
+cfg.train_dataset.rootDir =  '../../dataset/graph_dataset_rerefine'
 cfg.train_dataset.index_json = 'index_train.json'
 cfg.train_dataset.normalize_coord = False
 

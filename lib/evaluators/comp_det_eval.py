@@ -37,7 +37,7 @@ class Evaluator:
         # acc = self.accuracy(C,target)
         acc = np.sum(C == target) / target.shape[0]
         # print(confusion_matrix(target, C).astype(np.float32))
-        '''precision_macro = precision_score(target, C, average = 'macro')
+        precision_macro = precision_score(target, C, average = 'macro')
         recall_macro = recall_score(target, C, average = 'macro')
         # recall = np.sum(C[target == 1] == 1) / np.sum(target == 1)
         # precision = np.sum(target[C == 1] == 1) / np.sum(C == 1)
@@ -48,15 +48,14 @@ class Evaluator:
         # recall = np.sum(C[target == 1] == 1) / np.sum(target == 1)
         # precision = np.sum(target[C == 1] == 1) / np.sum(C == 1)
         f1_weight = f1_score(target, C, average='weighted')
-        '''
-        ''''precision_macro': torch.tensor(precision_macro),
+
+        return   {
+                "accuracy": torch.tensor(acc),
+                'precision_macro': torch.tensor(precision_macro),
                 "recall_macro": torch.tensor(recall_macro),
                 "f1-score_macro": torch.tensor(f1_macro),
-                
                 'precision_weighted': torch.tensor(precision_weight),
                 "recall_weighted": torch.tensor(recall_weight),
                 "f1-score_weighted": torch.tensor(f1_weight),
-                '''
-        return {
-                "accuracy": torch.tensor(acc)
-               }
+                }
+        

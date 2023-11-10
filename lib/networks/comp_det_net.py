@@ -34,7 +34,12 @@ class Network(nn.Module):
         
         self.cls_fn = Classifier(cfg.cls_fn)
         self.loc_fn = Classifier(cfg.loc_fn)
-        
+        self.fix_network(self.loc_fn)
+
+    def fix_network(self, model):
+        for n, params in model.named_parameters():
+            params.requires_grad = False
+
     def loss(self, output, gt):
         labels, bboxes = gt
         logits, local_params = output

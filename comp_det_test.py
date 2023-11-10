@@ -47,7 +47,7 @@ if __name__=='__main__':
     cfg.mode = "test"
     cfg.train.is_distributed = False
     cfg.train.local_rank = 0
-    cfg.test.vis_bbox = True
+    cfg.test.vis_bbox = False
     cfg.test.eval_merge = False
     cfg.test.eval_ap = False
     cfg.test.val_nms = False
@@ -58,6 +58,6 @@ if __name__=='__main__':
     print(cfg.test_dataset.rootDir)
     network = make_network(cfg.network)
     # begin_epoch = load_network(network, cfg.model_dir, map_location = f'cuda:{cfg.train.local_rank}')
-    #network.begi n_update_edge_attr()
+    # network.begi n_update_edge_attr()
     # print("begin epoch: ", begin_epoch)
     test(cfg, network)
