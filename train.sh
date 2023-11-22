@@ -2,5 +2,7 @@
 #nohup python -m torch.distributed.launch --nproc_per_node=3 train.py --exp_name=dataset_rerefinelarge_fillblank_gps_mode_GIN_train_mode_0_step_voting_confidence --train_mode=0 --cfg_file=configs/GPSModel_voting_confidence_guided.yaml --epochs=1500 --lr=5e-5
 
 # nohup python -m torch.distributed.launch --nproc_per_node=4  train.py --exp_name=ULDGNN_dataset_bg_color_orig_gpsmodel_GINE_anchor_edge_attr_cluster --train_mode=1 --cfg_file=configs/GPSModel_voting_edge_attr_cluster_anchor.yaml --epochs=50 --lr=0.0001 > log_clusteranchor.log
-nohup python -m torch.distributed.launch --nproc_per_node=4  train.py --exp_name=ULDGNN_dataset_bg_color_orig_gpsmodel_GINE_anchor_edge_attr_absolute_artboardimg --train_mode=0 --cfg_file=configs/GPSModel_voting_edge_attr_absolute_artboardimg.yaml --epochs=1050 --lr=0.0001 > log_refinebox.log
+# nohup python -m torch.distributed.launch --nproc_per_node=4  train.py --exp_name=ULDGNN_dataset_bg_color_orig_gpsmodel_GINE_anchor_edge_attr_absolute_artboardimg --train_mode=0 --cfg_file=configs/GPSModel_voting_edge_attr_absolute_artboardimg.yaml --epochs=1050 --lr=0.0001 > log_refinebox.log
 # nohup python -m torch.distributed.launch --nproc_per_node=4  train.py --exp_name=ULDGNN_new_split_bg_color_orig_gps_mode_3_GINE_anchor_edge_attr --train_mode=2 --cfg_file=configs/GPSModel_voting_edge_attr_anchor_new.yaml --epochs=2000 --lr=0.0001 > log_refine_box.log
+
+nohup python -m torch.distributed.launch --nproc_per_node=3 comp_det_train.py --exp_name=comp_det_roi --train_mode=0 --cfg_file=configs/comp_det_roi.yaml --epochs=1000 --lr=0.0001 > ./out/comp_det_roi.log

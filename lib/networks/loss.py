@@ -83,12 +83,15 @@ def ciou_loss(box1, box2, box_format = 'xywh'):
     ciou = 1 - iou + 1.0 * center_distance / torch.clamp(enclose_diagonal, min = 1e-6) + alpha * v
     return ciou	
 
-def make_classifier_loss(cfg):
+def make_classifier_loss(cfg, weight = None):
     print("Making regression loss ",cfg.type)
     if cfg.type == 'focal_loss':
         return FocalLoss(cfg.alpha, cfg.gamma, cfg.reduction)
     elif cfg.type == 'cross_entropy_loss':
-        return torch.nn.CrossEntropyLoss()
+        if weight is None:
+            return torch.nn.CrossEntropyLoss()
+        else:
+            return torch.nn.CrossEntropyLoss(weight = weight)
 
 def make_regression_loss(cfg):
     print("Making regression loss ",cfg.type)

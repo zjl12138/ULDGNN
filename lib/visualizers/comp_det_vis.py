@@ -80,4 +80,17 @@ class comp_det_visualizer:
         group_gt_img = self.visualize_box(gt_bboxes, artboard_id)
         compare_img = torch.cat((comp_pred_img, comp_pred_gt, group_pred_img, group_gt_img), dim = 2)
         save_image(compare_img, os.path.join(self.vis_dir, f'{artboard_id}-compare.png'))
+    
+    def visualize_recons_artboard(self, layer_rects, img_tensors, artboard_id):
+        img_1 = Image.open(os.path.join(self.img_folder, f'{artboard_id}.jpg')).resize(self.img_size)
         
+        recons_artboard = Image.new(img_1.mode, img_1.size, color = 'white')
+        for layer_rect, img_tensor in zip(layer_rects, img_tensors):
+            x1, y1, x2, y2 = self.scale_to_img(layer_rect)
+            w = x2 - x1
+            h = y2 - y1
+            recons_layer_img = ToPILImage(img_1.mode)(img_tensor).convert("RGB").resize((w, h))
+            recons_artboard.paste(recons_layer_img, (x1, y1))
+
+        save_img = torch.cat((ToTensor()(img_1), ToTensor()(recons_artboard)), dim = 2)
+        save_image(save_img, os.path.join(self.vis_dir, f'{artboard_id}-recons.png'))

@@ -102,8 +102,11 @@ cfg.network.type_embedder.out_dim = 512
 cfg.network.type_embedder.class_num = 11
 
 cfg.network.img_embedder = CN()
+cfg.network.img_embedder.type = 'resnet50'
 cfg.network.img_embedder.out_dim = 512
 cfg.network.img_embedder.name='resnet50'
+cfg.network.img_embedder.roi_out_size = 7
+cfg.network.img_embedder.roi_feat_way = 'no_FPN'
 
 cfg.network.img_seq_embedder = CN()
 cfg.network.img_seq_embedder.vit_name = 'vit_base_patch16_224.dino'
@@ -177,6 +180,8 @@ def make_cfg(args):
     '''
     if cfg.train.is_distributed:
         print("visible gpus: ", cfg.gpus)
+        os.environ['CUDA_VISIBLE_DEVICES'] = ', '.join([str(gpu) for gpu in cfg.gpus])
+    else:
         os.environ['CUDA_VISIBLE_DEVICES'] = ', '.join([str(gpu) for gpu in cfg.gpus])
     os.makedirs(cfg.outDir, exist_ok=True)
     cfg.recorder.record_dir = os.path.join(cfg.outDir, cfg.exp_name, 'records')

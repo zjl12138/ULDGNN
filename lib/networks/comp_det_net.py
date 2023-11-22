@@ -4,7 +4,7 @@ import torch_geometric
 from lib.networks.network import make_gnn
 from lib.config import cfg as CFG
 from lib.networks.loss import make_classifier_loss, make_regression_loss
-from lib.networks.layers import PosEmbedder, ImageEmbedder, GetPosEmbedder
+from lib.networks.layers import PosEmbedder, ImageEmbedder, GetPosEmbedder, ImgFeatRoiExtractor
 from lib.networks.network import Classifier
 
 cfg = CFG.network
@@ -13,7 +13,11 @@ class Network(nn.Module):
     def __init__(self):
         super(Network, self).__init__()
 
-        self.cls_loss_fn = make_classifier_loss(cfg.cls_loss)
+        self.cls_weights = torch.FloatTensor([4.6026e-04, 1.0917e-03, 3.0843e-04, 6.9754e-04, 1.8872e-04, 5.0046e-03,
+                        6.4896e-03, 1.7365e-01, 1.4079e-02, 2.1542e-02, 1.3265e-02, 6.3670e-02,
+                        2.6286e-02, 2.0687e-02, 7.7436e-02, 1.4326e-01, 1.4923e-02, 1.2906e-02,
+                        2.1200e-03, 5.9179e-04, 1.8020e-02, 2.6179e-04, 2.7287e-01, 1.1020e-01]).to(torch.device(f'cuda:{CFG.train.local_rank}'))
+        self.cls_loss_fn = make_classifier_loss(cfg.cls_loss, weight = self.cls_weights)
         self.reg_loss_fn = make_regression_loss(cfg.reg_loss)
         
         cfg.gnn_fn.in_dim = cfg.pos_embedder.out_dim
@@ -21,7 +25,13 @@ class Network(nn.Module):
         cfg.loc_fn.in_dim = cfg.gnn_fn.out_dim
         
         self.pos_embedder = PosEmbedder(cfg.pos_embedder)
-        self.img_embedder = ImageEmbedder(cfg.img_embedder)
+        print("Layer embedder way: ", cfg.img_embedder.type)
+        self.img_embedder_type = cfg.img_embedder.type
+        if cfg.img_embedder.type != 'roi':
+            self.img_embedder = ImageEmbedder(cfg.img_embedder)
+        else:
+            self.img_embedder = ImgFeatRoiExtractor(cfg.img_embedder)
+
         self.edge_embedder, self.edge_dim = GetPosEmbedder(cfg.edge_embedder.multires, include_input = True)
         
         print("edge_dim is ", self.edge_dim)
@@ -61,9 +71,13 @@ class Network(nn.Module):
         pos_embedding = self.pos_embedder(layer_rect)
         batch_embedding = batch_embedding + pos_embedding
     
-        img_embedding = self.img_embedder(images)
-        batch_embedding = batch_embedding + img_embedding
+        if self.img_embedder_type != 'roi':
+            img_embedding = self.img_embedder(images)
+        else:
+            img_embedding = self.img_embedder(images, torch.cat((node_indices.unsqueeze(1), layer_rect), dim = 1))
         
+        batch_embedding = batch_embedding + img_embedding
+    
         edge_attr = None
         if cfg.gnn_fn.local_gnn_type == 'GINEConv' or cfg.gnn_fn.local_gnn_type == 'GATConv' or cfg.gnn_fn.local_gnn_type == 'PNAConv':
             x_i = edges[0, :]

@@ -57,7 +57,8 @@ def train(cfg, network, begin_epoch = 0):
         if cfg.train.is_distributed:
             if cfg.train.local_rank == 0:
                 best_epoch = begin_epoch
-                val_metric_stats = trainer.val(begin_epoch, val_loader, evaluator, recorder, None, eval_merge = True)
+                val_metric_stats = trainer.val(begin_epoch, val_loader, evaluator, recorder,
+                                                vis if cfg.test.vis_bbox else None, False)
                 for k, v in best_merging_acc.items():
                     best_merging_acc[k] = val_metric_stats[k]
         else:
@@ -99,10 +100,10 @@ def train(cfg, network, begin_epoch = 0):
                             print(f"model with best {k} saving...")
                             best_merging_acc[k] = val_metric_stats[k]
                             save_model(network, optimizer, scheduler, recorder, cfg.model_dir,
-                                        epoch, True)
+                                        epoch, last = True)
 
                 print("saving model...")
-                save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, False)
+                save_model(network, optimizer, scheduler, recorder, cfg.model_dir, epoch, last = False)
 
         #if (epoch+1) % cfg.train.vis_ep == 0:
         #    trainer.val(epoch, val_loader, evaluator, recorder, vis)
@@ -117,6 +118,8 @@ if __name__ == '__main__':
         torch.distributed.init_process_group(backend="nccl",
                                              init_method="env://")
         synchronize()
+    else:
+        cfg.train.local_rank = 0
     network = make_network(cfg.network)
     if cfg.train.is_distributed:
         network = torch.nn.SyncBatchNorm.convert_sync_batchnorm(network)
@@ -127,6 +130,7 @@ if __name__ == '__main__':
             print(n)
     '''
     total_sum = sum(p.numel() for p in network.parameters())
+    print("training batch_size: ", cfg.train.batch_size)
     print("Number of parameters: ", total_sum / 1024 / 1024)
     '''
     if cfg.train.load_all_pretrained:

@@ -10,7 +10,7 @@ def save_model(net, optim, scheduler, recorder, model_dir, epoch, checkpoint_nam
         'epoch': epoch
     }
     if last:
-        print("saving model in epoch ", epoch)
+        print("saving latest model in epoch ", epoch)
         if checkpoint_name is None:
             torch.save(model, os.path.join(model_dir, 'latest.pth'))
         else:

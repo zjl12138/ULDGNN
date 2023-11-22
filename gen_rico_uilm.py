@@ -1,4 +1,4 @@
-from tkinter.tix import ExFileSelectBox
+
 import math
 from scipy.sparse import data
 from lib.utils.nms import nms_merge
@@ -16,10 +16,10 @@ import os
 from typing import List
 from sklearn.model_selection import train_test_split
 import json
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import random
 from random import choice
-from typing import List, Tuple, AnyStr
+from typing import List
 import numpy as np
 
 def random_color(n_colors):
@@ -46,9 +46,15 @@ label_to_str = {
                         21: 4,
                     }
 
+labelstring = {17: 'NAVIGATION_BAR',
+                            18: 'TOOLBAR',
+                            19: 'LIST_ITEM',
+                            20: 'CARD_VIEW',
+                            21: 'CONTAINER'}
+
 if __name__=='__main__':
     cfg.test.batch_size = 1
-    mode = 'tmp'
+    mode = 'train_new'
     cfg.test_dataset.rootDir = '../../dataset/rico_graph'
     cfg.test_dataset.module = 'lib.datasets.light_stage.rico_graph_dataset'
     cfg.test_dataset.path = 'lib/datasets/light_stage/rico_graph_dataset.py'
@@ -119,11 +125,17 @@ if __name__=='__main__':
         labeled_img.paste(artboard_img, (0, 0))
         rect_draw = ImageDraw.ImageDraw(labeled_img, labeled_img.mode)
         labels_str = ""
+        
         for count, layer_rect in enumerate(container_bounding_box):
             x, y, x1, x2 = int(layer_rect[0] * W), int(layer_rect[1] * H), int(layer_rect[2] * W), int(layer_rect[3] * H)
+          
+            rect_draw.text((x, y - 10), text = labelstring[container_type[count].item()], fill = (0, 0, 0))
             rect_draw.rectangle(
                 (x, y, x1, x2), 
-                outline = "red")
+                outline = (color_list[0][container_type[count] - 17],
+                            color_list[1][container_type[count] - 17],
+                            color_list[2][container_type[count]] - 17), width=2)
+
             x1_float, y1_float, x2_float, y2_float = layer_rect[0], layer_rect[1], layer_rect[2], layer_rect[3]
             labels_str += "{} {:.6f} {:.6f} {:.6f} {:.6f}\n".format(label_to_str[container_type[count].item()], 
                                                                     (x1_float + x2_float)/2, 

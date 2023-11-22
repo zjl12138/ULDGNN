@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import importlib
 import timm
+import torchvision
+
 class PosEmbedder_impl:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
@@ -97,7 +99,56 @@ class ImageSeqEmbedder(nn.Module):
         '''
         x = self.vit.forward_features(x)
         return x[:, 1:, :]
- 
 
+class ImgFeatRoiExtractor(nn.Module):
+    def __init__(self, cfg):
+        super(ImgFeatRoiExtractor, self).__init__()
+        self.roi_out_size = cfg.roi_out_size 
+        self.roi_feat_way = cfg.roi_feat_way
+        self.feature_extractor = torchvision.models.resnet50(pretrained = True)
+        
+        for k, p in self.feature_extractor.named_parameters():
+            p.requires_grad = False
+        
+        self.pool = self.feature_extractor.maxpool
+        self.layer0 = nn.Sequential(self.feature_extractor.conv1, 
+                                    self.feature_extractor.bn1, 
+                                    self.feature_extractor.relu)
+        self.layer1 = self.feature_extractor.layer1
+        self.layer2 = self.feature_extractor.layer2
+        self.layer3 = self.feature_extractor.layer3
+        self.layer4 = self.feature_extractor.layer4
+        
+        self.roi_out_dim = cfg.out_dim   
+        if self.roi_feat_way != 'FPN':
+            self.final_conv = nn.Conv2d(2048, self.roi_out_dim, kernel_size = 1, stride = 1, padding = 0)
+        self.final_pooling = nn.AdaptiveAvgPool2d((1, 1))
+
+    def get_feature_map(self, img_tensors):
+        if self.roi_feat_way == 'FPN':
+            y = self.layer0(img_tensors)
+            y_1 = self.layer1(self.pool(y))
+            y_2 = self.layer2(y_1)
+            y_3 = self.layer3(y_2)
+            y_4 = self.layer4(y_3)
+            fpn = torchvision.ops.FeaturePyramidNetwork([256, 512, 1024, 2048], self.roi_out_dim)
+            out = fpn({'feat_0':y_1, 'feat_1':y_2, 'feat_2':y_3, 'feat_3':y_4})
+            return out['feat_0']
+        else:
+            y = self.layer0(img_tensors)
+            y = self.layer1(self.pool(y))
+            y = self.layer2(y)
+            y = self.layer3(y)
+            y = self.layer4(y)
+            return y
+
+    def forward(self, img_tensors, boxes):
+        feature_maps = self.get_feature_map(img_tensors)
+        roi_features = torchvision.ops.roi_align(feature_maps, boxes, output_size = (self.roi_out_size, self.roi_out_size))
+        if self.roi_feat_way != 'FPN':
+            roi_features = self.final_conv(roi_features)
+        roi_features = self.final_pooling(roi_features)
+        roi_features = roi_features.reshape(-1, self.roi_out_dim)
+        return roi_features
 
         

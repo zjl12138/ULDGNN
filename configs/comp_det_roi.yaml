@@ -14,15 +14,15 @@ train:
 
 train_dataset:
     # rootDir: '../../dataset/graph_dataset_rererefine_copy'
-    module: 'lib.datasets.light_stage.rico_graph_dataset'
-    path: 'lib/datasets/light_stage/rico_graph_dataset.py'
+    module: 'lib.datasets.light_stage.rico_graph_dataset_roi'
+    path: 'lib/datasets/light_stage/rico_graph_dataset_roi.py'
     rootDir: '../../dataset/rico_graph'
     index_json: 'index_train_new.json'
     bg_color_mode: 'bg_color_orig'
 
 test_dataset:
-    module: 'lib.datasets.light_stage.rico_graph_dataset'
-    path: 'lib/datasets/light_stage/rico_graph_dataset.py'
+    module: 'lib.datasets.light_stage.rico_graph_dataset_roi'
+    path: 'lib/datasets/light_stage/rico_graph_dataset_roi.py'
     rootDir: '../../dataset/rico_graph'
     index_json: 'index_test_new.json'
     bg_color_mode: 'bg_color_orig'
@@ -64,6 +64,7 @@ network:
     img_embedder:
         out_dim: 128
         name: 'resnet50'
+        type: 'roi'
 
     reg_loss:
         type: 'ciou_loss'

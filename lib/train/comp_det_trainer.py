@@ -37,7 +37,7 @@ class Trainer(object):
             network = torch.nn.parallel.DistributedDataParallel(
                 network,
                 device_ids=[cfg.local_rank],
-                output_device=cfg.local_rank
+                output_device=cfg.local_rank,
             )
         self.network = network
 
@@ -58,6 +58,8 @@ class Trainer(object):
         max_iter = len(data_loader)
         self.network.train()
         end = time.time()
+        pred_list = []
+        label_list = []
         for iteration, batch in enumerate(data_loader):
             data_time = time.time() - end
             iteration += 1
@@ -72,8 +74,6 @@ class Trainer(object):
             
             if cfg.local_rank > 0:
                 continue
-            
-            recorder.step += 1
 
             loss_stats = self.reduce_loss_stats(loss_stats)
             recorder.update_loss_stats(loss_stats)
@@ -104,7 +104,7 @@ class Trainer(object):
             if iteration % cfg.record_interval == 0 or iteration == (max_iter - 1):
                 # record loss_stats and image_dict
                 recorder.record('train')
-    
+
     def val(self, epoch, data_loader, evaluator:Evaluator, recorder:Recorder, visualizer = None, eval_ap = False):
 
         self.network.eval()
