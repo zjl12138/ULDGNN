@@ -23,7 +23,7 @@ class Dataset(data.Dataset):
         return len(self.train_list)
 
     def read_img(self, img_path):
-        artboard_img = self.img_transform(Image.open(img_path).convert('RGB').resize((270, 480)))
+        artboard_img = self.img_transform(Image.open(img_path).convert('RGB').resize((300, 533)))
         return artboard_img.unsqueeze(0) # [1, 3, 960, 540]
 
     def read_json(self, json_path):

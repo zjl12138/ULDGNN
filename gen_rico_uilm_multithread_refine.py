@@ -1,3 +1,6 @@
+# This file generate the UILM dataset based on the rico graph dataset
+# We refine the bounding box labels by removing repeated bounding boxes
+
 import os
 import torch
 from threading import Thread, Lock
@@ -12,9 +15,8 @@ from typing import List
 from tqdm import tqdm
 
 
-
 cfg.test.batch_size = 1
-mode = 'test_new'
+mode = 'train_new'
 cfg.test_dataset.rootDir = '../../dataset/rico_graph'
 cfg.test_dataset.module = 'lib.datasets.light_stage.rico_graph_dataset'
 cfg.test_dataset.path = 'lib/datasets/light_stage/rico_graph_dataset.py'
@@ -36,10 +38,11 @@ acc = 0.
 labels_pred = []
 labels_gt = []
 merge_recall = 0.0
-merge_precision = 0.0 
-save_img_folder = os.path.join("../../dataset/UILM_rico_refine/", mode, "images")
-save_label_folder = os.path.join("../../dataset/UILM_rico_refine/", mode, "labels")
-labeld_artboard_folder = os.path.join("../../dataset/UILM_rico_refine/tmp", "images")
+merge_precision = 0.0
+dataset_name = 'UILM_rico_refine'
+save_img_folder = os.path.join(f"../../dataset/{dataset_name}/", mode, "images")
+save_label_folder = os.path.join(f"../../dataset/{dataset_name}/", mode, "labels")
+labeld_artboard_folder = os.path.join(f"../../dataset/{dataset_name}/tmp", "images")
 os.makedirs(save_img_folder, exist_ok = True)
 os.makedirs(save_label_folder, exist_ok = True)
 os.makedirs(labeld_artboard_folder, exist_ok = True)
@@ -52,11 +55,13 @@ label_to_str = {
                 21: 4,
                 }
 
-labelstring = {17: 'NAVIGATION_BAR',
+labelstring = {
+                17: 'NAVIGATION_BAR',
                 18: 'TOOLBAR',
                 19: 'LIST_ITEM',
                 20: 'CARD_VIEW',
-                21: 'CONTAINER'}
+                21: 'CONTAINER'
+              }
 
 def random_color(n_colors):
     print('generating random color list')
@@ -105,6 +110,40 @@ class processor(Thread):
         
         return layer_rect, edges, bbox, labels, node_indices, artboard_id
 
+    def is_child(self, parent, child):
+        if parent['bounds'][0] <= child['bounds'][0] and parent['bounds'][1] <= child['bounds'][1] \
+            and parent['bounds'][2] + parent['bounds'][0]>= child['bounds'][2] + child['bounds'][0] and parent['bounds'][3] +  parent['bounds'][1] \
+                    >= child['bounds'][3] + child['bounds'][1] :
+            return True
+        else:
+            return False
+
+    def build_tree(self, component_list):
+        component_list.sort(key=lambda x: x['bounds'][2] * x['bounds'][3], reverse = True)
+        root = component_list[0]
+        for i, node in enumerate(component_list):
+            if i == 0:
+                continue
+            for j in range(i - 1, -1, -1):
+                if self.is_child(component_list[j], node):
+                    component_list[j].setdefault('children', [])
+                    component_list[j]['children'].append(node)
+                    break
+        return root
+
+    def get_container_boxes (self, root, container_type, container_bounding_box):        
+        if 'children' in root and len(root['children']) > 1 and root['class'] != -1:
+            x, y, w, h = root['float_bounds']
+            container_bounding_box.append([x, y, x+w, y+h])
+            label_int = root['class']  
+            if label_int not in container_labels:
+                label_int = torch.LongTensor([21])
+            container_type.append(label_int)
+        if 'children' in root:
+            for child in root['children']:
+                self.get_container_boxes(child, container_type, container_bounding_box)
+
+
     def run(self):
         while True:
             if self.queue.empty():
@@ -126,8 +165,15 @@ class processor(Thread):
             semantic_draw = ImageDraw.ImageDraw(semantic_map, semantic_map.mode)
             container_type = []
             container_bounding_box = []
+            component_list = []
+            component_list.append({'class': -1, 'bounds': [0, 0, W, H]})
             for count, layer_rect in enumerate(layer_rects.numpy().tolist()):
                 x, y, w, h = int(layer_rect[0] * W), int(layer_rect[1] * H), int(layer_rect[2] * W), int(layer_rect[3] * H)
+                component_list.append({'float_bounds':[layer_rect[0], layer_rect[1], 
+                                                 layer_rect[2] - layer_rect[0], 
+                                                 layer_rect[3] - layer_rect[1],
+                                                ], 'class': labels[count],
+                                                'bounds': [x, y, w - x, h - y]})
                 if labels[count] not in container_labels:
                     semantic_draw.rectangle(
                         (x, y, w, h), 
@@ -136,9 +182,10 @@ class processor(Thread):
                                 color_list[2][count],
                                 int(0.3 * 255)
                             ))
-                else:
-                    container_type.append(labels[count])
-                    container_bounding_box.append([layer_rect[0], layer_rect[1], layer_rect[2], layer_rect[3]])
+            
+            root = self.build_tree(component_list)
+            self.get_container_boxes(root, container_type, container_bounding_box)
+            
             if len(container_bounding_box) ==  0:
                 self.pbar.update()
                 self.queue.task_done()

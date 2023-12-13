@@ -21,6 +21,26 @@ class comp_det_visualizer:
         self.vis_dir = vis_cfg.vis_dir
         self.img_size = vis_cfg.img_size
         self.img_folder = vis_cfg.img_folder
+        self.label_mapping = {
+                                0:0,
+                                1:1,
+                                2:2,
+                                3:3,
+                                4:4,
+                                5:5,
+                                6:6,
+                                7:8,
+                                8:9,
+                                9:10,
+                                10:12,
+                                11:13,
+                                12:16,
+                                13:17,
+                                14:18,
+                                15:19,
+                                16:20,
+                                17:21
+                            }
         self.label_to_str = {-1: 'ROOT',
                             0: 'BACKGROUND',
                             1: 'IMAGE',
@@ -53,7 +73,20 @@ class comp_det_visualizer:
         x[2] = clip_val(x[2], 0, 1)
         x[3] = clip_val(x[3], 0, 1)
         return (int(x[0] * W), int(x[1] * H), int(x[2] * W), int(x[3] * H))
-    
+
+    def visualize_layer_inference(self, layer_rects, pred_label, ids, artboard_img_path):
+        img_1 = Image.open(artboard_img_path).resize(self.img_size)
+        # draw rectangles in the image
+        img_draw = ImageDraw.Draw(img_1)       
+        for layer_rect, layer_id in zip(layer_rects, pred_label):
+            img_draw.rectangle(self.scale_to_img(layer_rect), outline=(0, 0, 255), width=1)
+            x, y, w, h = self.scale_to_img(layer_rect)
+            img_draw.text((x, y), self.label_to_str[self.label_mapping[layer_id.cpu().item()]], fill=(0, 0, 255))
+        id_to_labelstr = {}
+        for id, label in zip(ids, pred_label):
+            id_to_labelstr[id] = self.label_to_str[self.label_mapping[label.cpu().item()]]
+        return ToTensor()(img_1), id_to_labelstr
+
     def visualize_layer(self, layer_rects, pred_label, artboard_id):
         img_1 = Image.open(os.path.join(self.img_folder, f'{artboard_id}.jpg')).resize(self.img_size)
         # draw rectangles in the image
@@ -61,7 +94,7 @@ class comp_det_visualizer:
         for layer_rect, layer_id in zip(layer_rects, pred_label):
             img_draw.rectangle(self.scale_to_img(layer_rect), outline=(0, 0, 255), width=1)
             x, y, w, h = self.scale_to_img(layer_rect)
-            img_draw.text((x, y), self.label_to_str[layer_id.cpu().item()], fill=(0, 0, 255))
+            img_draw.text((x, y), self.label_to_str[self.label_mapping[layer_id.cpu().item()]], fill=(0, 0, 255))
         return ToTensor()(img_1)
     
     def visualize_box(self, boxes, artboard_id):

@@ -3,6 +3,7 @@ from lib.config import cfg
 from tqdm import tqdm 
 import torch
 from lib.visualizers import comp_det_visualizer
+from torch_geometric.data import Data
 
 if __name__=='__main__':
     cfg.test_dataset.module = 'lib.datasets.light_stage.rico_graph_dataset'
@@ -19,6 +20,11 @@ if __name__=='__main__':
         # print(artboard_id)
         all_labels.append(labels)
         # vis.visualize_recons_artboard(layer_rect, assets_img, artboard_id[0])
+        graph_data = Data(layer_rect, edges)
+        if graph_data.has_isolated_nodes():
+            print(artboard_id)
+        if 18 in labels.numpy().tolist():
+            print(artboard_id)
     # 
     # all_labels is like [0, 0, 1, 1, ...]
     # I want to know the number of each class label#

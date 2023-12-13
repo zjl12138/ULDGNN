@@ -7,22 +7,22 @@ train:
     save_best_acc: True
     is_distributed: True
     eval_ep: 10
-    batch_size: 32
+    batch_size: 12
     load_all_pretrained: False
     train_module: "lib.train.comp_det_trainer"
     train_path: "lib/train/comp_det_trainer.py"
 
 train_dataset:
     # rootDir: '../../dataset/graph_dataset_rererefine_copy'
-    module: 'lib.datasets.light_stage.rico_graph_dataset'
-    path: 'lib/datasets/light_stage/rico_graph_dataset.py'
+    module: 'lib.datasets.light_stage.rico_graph_dataset_roi'
+    path: 'lib/datasets/light_stage/rico_graph_dataset_roi.py'
     rootDir: '../../dataset/rico_graph_discard_rarelabels'
     index_json: 'index_train_new.json'
     bg_color_mode: 'bg_color_orig'
 
 test_dataset:
-    module: 'lib.datasets.light_stage.rico_graph_dataset'
-    path: 'lib/datasets/light_stage/rico_graph_dataset.py'
+    module: 'lib.datasets.light_stage.rico_graph_dataset_roi'
+    path: 'lib/datasets/light_stage/rico_graph_dataset_roi.py'
     rootDir: '../../dataset/rico_graph_discard_rarelabels'
     index_json: 'index_test_new.json'
     bg_color_mode: 'bg_color_orig'
@@ -64,6 +64,8 @@ network:
     img_embedder:
         out_dim: 128
         name: 'resnet50'
+        type: 'roi'
+        roi_feat_way: 'FPN'
 
     reg_loss:
         type: 'ciou_loss'
@@ -87,7 +89,7 @@ network:
       batch_norm: False
     
     cls_fn:
-        classes: 18
+        classes: 24
 
     loc_fn: 
       clip_val: True

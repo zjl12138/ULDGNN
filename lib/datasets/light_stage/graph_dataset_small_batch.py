@@ -14,45 +14,6 @@ import colorsys
 from torchvision.utils import save_image
 from lib.utils import get_the_bbox_of_cluster
 
-def collate_fn(batch, collate_img_path=True):
-    #layer_rect, edges, types, layer_img, labels, bbox, orig_layer_rect
-    nodes_list = [b[0] for b in batch]
-    nodes = torch.cat(nodes_list, dim=0)
-    nodes_lens = np.fromiter(map(lambda l: l.shape[0], nodes_list), dtype=np.int64)
-    nodes_inds = np.cumsum(nodes_lens)
-    nodes_num = nodes_inds[-1]
-    nodes_inds = np.insert(nodes_inds, 0, 0)
-    nodes_inds = np.delete(nodes_inds, -1)
-    edges_list = [b[1] for b in batch]
-    edges_list = [e+int(i) for e, i in zip(edges_list, nodes_inds)]
-    edges = torch.cat(edges_list, dim=1)
-    types = [b[2] for b in batch]
-    types = torch.cat(types, dim=0)
-    labels = [b[4] for b in batch]
-    labels = torch.cat(labels, dim=0)
-    bboxes = [b[5]for b in batch]
-    bboxes = torch.cat(bboxes,dim=0)
-    img_list = [b[3]for b in batch]
-    img_tensor = torch.cat(img_list, dim=0)
-    
-    origin_layer_rect_list = [b[6] for b in batch]
-    orig_layer_rect = torch.cat(origin_layer_rect_list, dim=0)
-      
-    if collate_img_path:
-        node_ind_list = [b[7] for b in batch]
-        #node_ind_list = [cur + torch.max(i)for prev, cur in zip(node_ind_list[:-1],node_ind_list[1:])]
-        graph_lens = np.fromiter(map(lambda l: l[-1]+1, node_ind_list), dtype=np.int64)
-        graph_inds = np.cumsum(graph_lens)
-        
-        graph_inds = np.insert(graph_inds, 0, 0)
-        graph_inds = np.delete(graph_inds, -1)
-        node_ind_list = [e + int(i) for e, i in zip(node_ind_list, graph_inds)]
-        node_indices = torch.cat(node_ind_list, dim=0)
-        file_list = [b[8] for b in batch]
-
-        return  nodes, edges, types,  img_tensor, labels, bboxes, orig_layer_rect, node_indices, file_list   
-    return nodes, edges, types,  img_tensor, labels, bboxes, orig_layer_rect
-
 def read_graph_json(path): 
     '''
     output: bbox stores (delta_x, delta_y, delta_w, delta_h), bbox + layer_rect is the real bbox size
@@ -157,6 +118,45 @@ class Dataset(data.Dataset):
         # batch.append([layer_rect, edges, types, layer_img, labels, bbox, orig_layer_rect])
     
         return [layer_rect, edges, types, layer_img, labels, bbox, orig_layer_rect, node_indices, layer_img_path]
+
+    def collate_fn(self, batch, collate_img_path=True):
+    #layer_rect, edges, types, layer_img, labels, bbox, orig_layer_rect
+        nodes_list = [b[0] for b in batch]
+        nodes = torch.cat(nodes_list, dim=0)
+        nodes_lens = np.fromiter(map(lambda l: l.shape[0], nodes_list), dtype=np.int64)
+        nodes_inds = np.cumsum(nodes_lens)
+        nodes_num = nodes_inds[-1]
+        nodes_inds = np.insert(nodes_inds, 0, 0)
+        nodes_inds = np.delete(nodes_inds, -1)
+        edges_list = [b[1] for b in batch]
+        edges_list = [e+int(i) for e, i in zip(edges_list, nodes_inds)]
+        edges = torch.cat(edges_list, dim=1)
+        types = [b[2] for b in batch]
+        types = torch.cat(types, dim=0)
+        labels = [b[4] for b in batch]
+        labels = torch.cat(labels, dim=0)
+        bboxes = [b[5]for b in batch]
+        bboxes = torch.cat(bboxes,dim=0)
+        img_list = [b[3]for b in batch]
+        img_tensor = torch.cat(img_list, dim=0)
+        
+        origin_layer_rect_list = [b[6] for b in batch]
+        orig_layer_rect = torch.cat(origin_layer_rect_list, dim=0)
+        
+        if collate_img_path:
+            node_ind_list = [b[7] for b in batch]
+            #node_ind_list = [cur + torch.max(i)for prev, cur in zip(node_ind_list[:-1],node_ind_list[1:])]
+            graph_lens = np.fromiter(map(lambda l: l[-1]+1, node_ind_list), dtype=np.int64)
+            graph_inds = np.cumsum(graph_lens)
+            
+            graph_inds = np.insert(graph_inds, 0, 0)
+            graph_inds = np.delete(graph_inds, -1)
+            node_ind_list = [e + int(i) for e, i in zip(node_ind_list, graph_inds)]
+            node_indices = torch.cat(node_ind_list, dim=0)
+            file_list = [b[8] for b in batch]
+
+            return  nodes, edges, types,  img_tensor, labels, bboxes, orig_layer_rect, node_indices, file_list   
+        return nodes, edges, types,  img_tensor, labels, bboxes, orig_layer_rect
 
 if __name__=='__main__':
     cfg = CN()

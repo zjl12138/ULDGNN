@@ -7,7 +7,7 @@ train:
     save_best_acc: True
     is_distributed: True
     eval_ep: 10
-    batch_size: 32
+    batch_size: 16
     load_all_pretrained: False
     train_module: "lib.train.comp_det_trainer"
     train_path: "lib/train/comp_det_trainer.py"
@@ -31,14 +31,16 @@ test:
     vis_bbox: False
     val_nms: False
     eval_merge: False
-    
+
 network:
+
     network_module: 'lib.networks.comp_det_net'
     network_path: 'lib/networks/comp_det_net.py'
     loc_type: 'regress_absolute_box'
     remove_pos: False
     remove_type: False
     remove_img: False
+    remove_gnn: True
 
     confidence_weight: 5.0
     use_attn_weight: False
@@ -64,6 +66,8 @@ network:
     img_embedder:
         out_dim: 128
         name: 'resnet50'
+        type: 'resnet50'
+        roi_feat_way: 'FPN'
 
     reg_loss:
         type: 'ciou_loss'
@@ -87,7 +91,7 @@ network:
       batch_norm: False
     
     cls_fn:
-        classes: 18
+        classes: 24
 
     loc_fn: 
       clip_val: True

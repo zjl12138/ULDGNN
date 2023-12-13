@@ -66,9 +66,11 @@ class ImageEmbedder(nn.Module):
         super(ImageEmbedder, self).__init__()
         self.out_dim = cfg.out_dim    
         self.feature_extractor = getattr(importlib.import_module('torchvision.models'),cfg.name)(pretrained=True)
+        '''
         for k, p in self.feature_extractor.named_parameters():
             if 'conv' in k or 'bn' in k or "downsample" in k:
                 p.requires_grad = False
+        '''
         num_channels = self.feature_extractor.fc.in_features
         self.feature_extractor.fc = nn.Linear(num_channels, self.out_dim)
     
@@ -105,23 +107,38 @@ class ImgFeatRoiExtractor(nn.Module):
         super(ImgFeatRoiExtractor, self).__init__()
         self.roi_out_size = cfg.roi_out_size 
         self.roi_feat_way = cfg.roi_feat_way
-        self.feature_extractor = torchvision.models.resnet50(pretrained = True)
+        feature_extractor = torchvision.models.resnet50(pretrained = True)
         
-        for k, p in self.feature_extractor.named_parameters():
+        '''for k, p in self.feature_extractor.named_parameters():
             p.requires_grad = False
-        
-        self.pool = self.feature_extractor.maxpool
-        self.layer0 = nn.Sequential(self.feature_extractor.conv1, 
-                                    self.feature_extractor.bn1, 
-                                    self.feature_extractor.relu)
-        self.layer1 = self.feature_extractor.layer1
-        self.layer2 = self.feature_extractor.layer2
-        self.layer3 = self.feature_extractor.layer3
-        self.layer4 = self.feature_extractor.layer4
-        
+        '''
+        self.pool = feature_extractor.maxpool
+        self.layer0 = nn.Sequential(feature_extractor.conv1, 
+                                    feature_extractor.bn1, 
+                                    feature_extractor.relu)
+        self.layer1 = feature_extractor.layer1
+        for k, p in self.layer1.named_parameters():
+            p.requires_grad = False
+        self.layer2 = feature_extractor.layer2
+        for k, p in self.layer2.named_parameters():
+            p.requires_grad = False
+        self.layer3 = feature_extractor.layer3
+        for k, p in self.layer3.named_parameters():
+            p.requires_grad = False
+        self.layer4 = feature_extractor.layer4
+       
         self.roi_out_dim = cfg.out_dim   
         if self.roi_feat_way != 'FPN':
             self.final_conv = nn.Conv2d(2048, self.roi_out_dim, kernel_size = 1, stride = 1, padding = 0)
+        else:
+            print("using FPN!")
+            self.fpn = torchvision.ops.FeaturePyramidNetwork([256, 512, 1024, 2048], self.roi_out_dim)
+            for k, p in self.fpn.layer_blocks[1].named_parameters():
+                p.requires_grad = False
+            for k, p in self.fpn.layer_blocks[2].named_parameters():
+                p.requires_grad = False
+            for k, p in self.fpn.layer_blocks[3].named_parameters():
+                p.requires_grad = False
         self.final_pooling = nn.AdaptiveAvgPool2d((1, 1))
 
     def get_feature_map(self, img_tensors):
@@ -131,8 +148,7 @@ class ImgFeatRoiExtractor(nn.Module):
             y_2 = self.layer2(y_1)
             y_3 = self.layer3(y_2)
             y_4 = self.layer4(y_3)
-            fpn = torchvision.ops.FeaturePyramidNetwork([256, 512, 1024, 2048], self.roi_out_dim)
-            out = fpn({'feat_0':y_1, 'feat_1':y_2, 'feat_2':y_3, 'feat_3':y_4})
+            out = self.fpn({'feat_0':y_1, 'feat_1':y_2, 'feat_2':y_3, 'feat_3':y_4})
             return out['feat_0']
         else:
             y = self.layer0(img_tensors)
